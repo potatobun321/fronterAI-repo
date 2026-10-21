@@ -2,13 +2,16 @@
 # FRONTIER AI — CLOUDFLARE WRANGLER CONFIGURATION
 # ==============================================================================
 
-name = "frontier-ai"
+name = "fronterai-repo"
 compatibility_date = "2024-04-01"
-pages_build_output_dir = "./public"
+main = "worker.js"
+
+# Static assets directory for frontend
+[assets]
+directory = "./public"
+binding = "ASSETS"
 
 # Cloudflare D1 Database Binding
-# Replace `database_id` with the ID generated when you run:
-#   npx wrangler d1 create frontier-production-db
 [[d1_databases]]
 binding = "DB"
 database_name = "frontier-production-db"
@@ -17,4 +20,4 @@ database_id = "6f92a95b-b7eb-459f-9d75-1ae9a037d1c7"
 # Environment Variables (Non-sensitive)
 [vars]
 NODE_ENV = "production"
-PORT = "8787"
+
