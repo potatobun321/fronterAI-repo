@@ -15,8 +15,8 @@
 
   /* Typography Colors */
   --text-primary: #e3e3e3;
-  --text-secondary: #c4c7c5;
-  --text-muted: #8e918f;
+  --text-secondary: #c8cbc9;
+  --text-muted: #a4a7a5;
   --text-inverse: #062e6f;
 
   /* Google Brand Colors */
@@ -463,6 +463,141 @@ body {
   color: var(--google-amber-text);
 }
 
+/* --- Settings Dropdown Toggle & Subitems --- */
+.nav-dropdown-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  margin-left: auto;
+  color: inherit;
+  opacity: 0.85;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, opacity 0.15s ease, transform 0.25s ease;
+  user-select: none;
+}
+
+.nav-dropdown-toggle:hover {
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.14);
+}
+
+.nav-dropdown-toggle:active {
+  transform: scale(0.92);
+}
+
+.nav-item:not(.active) .nav-dropdown-toggle:hover {
+  background-color: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.nav-dropdown-chevron {
+  display: block;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: center center;
+}
+
+/* When options are visible, the upside down greater button rotates 180° to look like the head of an upward arrow */
+.nav-dropdown-toggle.expanded .nav-dropdown-chevron {
+  transform: rotate(180deg);
+}
+
+.nav-subitems-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 3px;
+  margin-bottom: 6px;
+  padding-left: 18px;
+  position: relative;
+  overflow: hidden;
+  max-height: 220px;
+  opacity: 1;
+  transition: max-height 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, margin 0.2s ease;
+}
+
+.nav-subitems-container::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 6px;
+  bottom: 8px;
+  width: 2px;
+  background-color: var(--border-subtle);
+  border-radius: 1px;
+}
+
+.nav-subitems-container.collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  pointer-events: none;
+}
+
+.nav-subitem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border-radius: 18px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
+              border-color 0.18s ease,
+              color 0.18s ease,
+              transform 0.1s ease;
+  width: 100%;
+  position: relative;
+}
+
+.nav-subitem:hover {
+  background-color: var(--bg-surface-elevated);
+  color: var(--text-primary);
+}
+
+.nav-subitem.active {
+  background-color: rgba(168, 199, 250, 0.16);
+  border-color: rgba(168, 199, 250, 0.25);
+  color: var(--google-blue);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.nav-subitem:active {
+  transform: translateY(1.5px) scale(0.98);
+}
+
+.nav-subitem-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: color 0.15s ease;
+}
+
+.nav-subitem:hover .nav-subitem-icon {
+  color: var(--text-secondary);
+}
+
+.nav-subitem.active .nav-subitem-icon {
+  color: var(--google-blue);
+}
+
+.nav-subitem-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .sidebar-bottom-card {
   background-color: var(--bg-surface);
   border: 1px solid var(--border-subtle);
@@ -525,6 +660,8 @@ body {
 
 .workspace-view.active {
   display: block;
+  animation: toggleViewFadeSlide 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity, transform;
 }
 
 /* General View Header */
@@ -547,7 +684,7 @@ body {
 
 .view-subtitle {
   font-size: 13px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 .header-action-group {
@@ -564,6 +701,13 @@ body {
   border-radius: 10px;
   padding: 14px 18px;
   position: relative;
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  border-color: #5f6368;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
 }
 
 .card-title {
@@ -579,39 +723,94 @@ body {
   line-height: 1.4;
 }
 
-/* Segmented Tab Controls */
+/* Segmented Tab Controls (Fluid Physics & Sliding Pill Glider) */
 .segmented-control {
   display: inline-flex;
-  background-color: var(--bg-surface);
+  align-items: center;
+  position: relative;
+  background-color: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border-subtle);
-  border-radius: 8px;
+  border-radius: 9px;
   padding: 3px;
   gap: 2px;
   margin-bottom: 14px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+  user-select: none;
+  box-sizing: border-box;
+}
+
+#task-view-mode-tabs,
+#task-filter-pills {
+  margin-bottom: 0;
+}
+
+/* Sliding active pill indicator for buttery-smooth toggle physics */
+.segmented-glider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 7px;
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+  z-index: 1;
+  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+              width 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+              height 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+              opacity 0.15s ease;
+  opacity: 0;
+  box-sizing: border-box;
 }
 
 .segmented-tab {
+  position: relative;
+  z-index: 2;
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   color: var(--text-muted);
   font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 500;
   padding: 6px 14px;
-  border-radius: 6px;
+  border-radius: 7px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: color 0.18s ease,
+              background-color 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+              border-color 0.2s ease,
+              box-shadow 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+              transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1);
+  user-select: none;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
 }
 
-.segmented-tab:hover {
+.segmented-tab:hover:not(.active) {
   color: var(--text-primary);
+  background-color: rgba(255, 255, 255, 0.04);
 }
 
 .segmented-tab.active {
   background-color: var(--bg-surface-elevated);
   color: var(--text-primary);
   font-weight: 600;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+/* When glider is mounted, glider provides the pill background, keeping tab background transparent */
+.segmented-control.has-glider .segmented-tab.active {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.segmented-tab:active:not(:disabled) {
+  transform: translateY(2px) scale(0.98);
+  background-color: var(--bg-surface-hover);
 }
 
 /* Room Status Indicators & Pulse */
@@ -657,9 +856,11 @@ body {
   font-weight: 600;
   border-radius: 20px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.15s ease, transform 0.08s ease, filter 0.08s ease, box-shadow 0.08s ease;
   border: none;
   text-decoration: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .btn-filled {
@@ -670,6 +871,12 @@ body {
 .btn-filled:hover {
   background-color: #bcd5fb;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.btn-filled:active:not(:disabled) {
+  background-color: #92b6f4;
+  transform: translateY(2px) scale(0.98);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4) !important;
 }
 
 .btn-outlined {
@@ -683,6 +890,12 @@ body {
   border-color: var(--text-primary);
 }
 
+.btn-outlined:active:not(:disabled) {
+  background-color: var(--bg-surface-hover);
+  transform: translateY(2px) scale(0.98);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+}
+
 .btn-text {
   background: transparent;
   color: var(--google-blue);
@@ -691,10 +904,31 @@ body {
   font-weight: 600;
   cursor: pointer;
   padding: 4px 8px;
+  transition: all 0.15s ease, transform 0.08s ease;
 }
 
 .btn-text:hover {
   text-decoration: underline;
+}
+
+.btn-text:active:not(:disabled) {
+  transform: translateY(1.5px) scale(0.97);
+  opacity: 0.8;
+}
+
+/* Global Tactile Press Feeling for all interactive buttons */
+button:active:not(:disabled),
+.btn:active:not(:disabled),
+.segmented-tab:active:not(:disabled),
+.pill:active:not(:disabled),
+.btn-cal-action:active:not(:disabled),
+.meet-link-btn:active:not(:disabled),
+.oracle-prompt-chip:active:not(:disabled),
+.btn-demo-pill:active:not(:disabled),
+.btn-negative-test:active:not(:disabled) {
+  transform: translateY(2px) scale(0.98);
+  filter: brightness(0.92);
+  transition: transform 0.05s ease, filter 0.05s ease, box-shadow 0.05s ease;
 }
 
 .btn-icon {
@@ -712,6 +946,11 @@ body {
 .btn-icon:hover {
   background-color: var(--bg-surface-elevated);
   color: var(--text-primary);
+}
+
+.btn-icon:active:not(:disabled) {
+  transform: scale(0.90);
+  background-color: var(--bg-surface-hover);
 }
 
 .btn-sm {
@@ -795,6 +1034,13 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: #5f6368;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
 }
 
 .kpi-header {
@@ -843,7 +1089,8 @@ body {
   height: 100%;
   background-color: var(--google-blue);
   border-radius: 3px;
-  transition: width 0.3s ease;
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width;
 }
 
 .progress-green { background-color: var(--google-green); }
@@ -918,7 +1165,7 @@ body {
 
 .col-subtitle {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 .compact-task-list,
@@ -937,6 +1184,13 @@ body {
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   gap: 12px;
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.compact-task-row:hover {
+  transform: translateY(-2px);
+  border-color: #5f6368;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .compact-task-title {
@@ -1052,7 +1306,7 @@ body {
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 12px 14px;
-  transition: all 0.15s ease;
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), border-color 0.2s ease, box-shadow 0.2s ease;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -1061,8 +1315,9 @@ body {
 }
 
 .kanban-card:hover {
-  border-color: var(--border-default);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
+  border-color: #5f6368;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
 }
 
 .card-top-bar {
@@ -1090,6 +1345,48 @@ body {
   color: var(--text-muted);
   padding: 2px 6px;
   border-radius: 4px;
+}
+
+/* Task Due Date Badge (Monospace with calendar icon and status colors) */
+.task-due-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  line-height: 1.3;
+}
+
+.task-due-icon {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+/* Red when overdue */
+.task-due-badge.due-red {
+  color: var(--google-red);
+  background-color: rgba(242, 184, 181, 0.12);
+  border-color: rgba(242, 184, 181, 0.35);
+}
+
+/* Amber when due within 2 days */
+.task-due-badge.due-amber {
+  color: var(--google-amber);
+  background-color: rgba(253, 214, 99, 0.12);
+  border-color: rgba(253, 214, 99, 0.35);
+}
+
+/* Grey otherwise */
+.task-due-badge.due-grey {
+  color: var(--text-secondary);
+  background-color: var(--bg-surface-elevated);
+  border-color: var(--border-subtle);
 }
 
 .kanban-card-title {
@@ -1976,6 +2273,89 @@ body {
   display: none !important;
 }
 
+/* --- Fluid Toggle & Switching Content Animations --- */
+@keyframes toggleContentFadeSlide {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toggleViewFadeSlide {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toggleItemFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes togglePillReveal {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes toggleDropdownFade {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Applying smooth transitions to toggled containers */
+#container-tasks-mine:not(.hidden),
+#container-tasks-all:not(.hidden),
+.settings-subpanel:not(.hidden),
+#container-tasklets-received:not(.hidden),
+#container-tasklets-sent:not(.hidden),
+.voting-main-card {
+  animation: toggleContentFadeSlide 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity, transform;
+}
+
+#task-filter-pills:not(.hidden) {
+  animation: togglePillReveal 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity, transform;
+}
+
+.persona-menu:not(.hidden) {
+  animation: toggleDropdownFade 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: top right;
+}
+
+.kanban-card,
+.compact-task-row,
+.tasklet-card {
+  animation: toggleItemFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* ==========================================================================
    Additions for Personal vs Global Dashboards & Calendar Meeting Pings
    ========================================================================== */
@@ -2018,12 +2398,13 @@ body {
   flex-direction: column;
   justify-content: space-between;
   gap: 12px;
-  transition: all 0.15s ease;
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .cal-event-card:hover {
-  border-color: var(--border-default);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
+  border-color: #5f6368;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
 }
 
 .cal-card-top {
@@ -2067,7 +2448,28 @@ body {
   color: var(--text-secondary);
   display: flex;
   align-items: center;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cal-countdown-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--google-blue);
+  background: rgba(168, 199, 250, 0.12);
+  border: 1px solid rgba(168, 199, 250, 0.28);
+  padding: 1px 8px;
+  border-radius: 12px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.cal-hero-countdown-text {
+  color: var(--google-amber);
+  font-weight: 600;
 }
 
 .meet-link-btn {
@@ -2104,6 +2506,13 @@ body {
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   gap: 12px;
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ping-card-row:hover {
+  transform: translateY(-2px);
+  border-color: #5f6368;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .ping-title {
@@ -2385,7 +2794,9 @@ body {
 .workspace-sidebar.collapsed .sidebar-section-title,
 .workspace-sidebar.collapsed .sidebar-bottom-card,
 .workspace-sidebar.collapsed .sidebar-divider,
-.workspace-sidebar.collapsed .room-status-dot {
+.workspace-sidebar.collapsed .room-status-dot,
+.workspace-sidebar.collapsed .nav-dropdown-toggle,
+.workspace-sidebar.collapsed .nav-subitems-container {
   display: none !important;
 }
 

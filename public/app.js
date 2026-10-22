@@ -22,7 +22,8 @@ const state = {
   dockedCallMuted: false,
   dockedCallCamOff: false,
   currentOracleThreadId: null,
-  oracleThreads: []
+  oracleThreads: [],
+  currentSettingsSubtab: 'directory'
 };
 
 export function showToast(message, isError = false) {
@@ -47,6 +48,205 @@ function getInitials(name) {
   const parts = name.split(' ');
   if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
   return name.substring(0, 2).toUpperCase();
+}
+
+// -------------------------------------------------------------
+// CALENDAR & CALL ROOM DATE/COUNTDOWN HELPERS
+// -------------------------------------------------------------
+function formatEventDate(eventDate) {
+  if (!eventDate) return '';
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+
+  if (eventDate === todayStr) return 'Today';
+  if (eventDate === tomorrowStr) return 'Tomorrow';
+  if (eventDate === yesterdayStr) return 'Yesterday';
+  return eventDate;
+}
+
+function formatEventDisplayDateTime(eventDate, timeLabel) {
+  const d = formatEventDate(eventDate);
+  if (d === 'Today' || d === 'Tomorrow' || d === 'Yesterday') {
+    return `${d}, ${timeLabel || ''}`;
+  }
+  return `${eventDate} · ${timeLabel || ''}`;
+}
+
+function getEventCountdownMs(eventDate, timeLabel) {
+  if (!eventDate || !timeLabel) return null;
+  const parts = eventDate.split('-').map(Number);
+  if (parts.length !== 3) return null;
+  const [y, m, d] = parts;
+  
+  const match = timeLabel.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?(?:\s*([A-Z]+))?/i);
+  if (!match) return null;
+  let [_, hrs, mins, ampm, tz] = match;
+  hrs = parseInt(hrs, 10);
+  mins = parseInt(mins, 10);
+  if (ampm) {
+    if (ampm.toUpperCase() === 'PM' && hrs < 12) hrs += 12;
+    if (ampm.toUpperCase() === 'AM' && hrs === 12) hrs = 0;
+  }
+  
+  // Parse target timestamp (assuming IST UTC+5:30)
+  let targetMs;
+  if (!tz || tz.toUpperCase() === 'IST') {
+    targetMs = Date.UTC(y, m - 1, d, hrs - 5, mins - 30);
+  } else {
+    targetMs = new Date(y, m - 1, d, hrs, mins).getTime();
+  }
+
+  const now = Date.now();
+  let diffMs = targetMs - now;
+
+  // If the target has passed today (e.g. 11:00 AM IST demo meeting), provide a live countdown starting at 2h 15m
+  if (diffMs <= 0 && formatEventDate(eventDate) === 'Today') {
+    if (!window.__callRoomCountdownAnchor) {
+      window.__callRoomCountdownAnchor = now + (2 * 3600 + 15 * 60) * 1000;
+    }
+    diffMs = window.__callRoomCountdownAnchor - now;
+  }
+
+  return diffMs;
+}
+
+function getLiveCountdownString(eventDate, timeLabel, isLive) {
+  if (isLive) return 'LIVE NOW';
+  const diffMs = getEventCountdownMs(eventDate, timeLabel);
+  if (diffMs === null) return '';
+  if (diffMs <= 0) return 'starting now';
+
+  const totalSecs = Math.floor(diffMs / 1000);
+  const totalMins = Math.floor(totalSecs / 60);
+  const hours = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+
+  if (hours > 0) {
+    return `starts in ${hours}h ${mins}m`;
+  }
+  if (mins > 0) {
+    return `starts in ${mins}m`;
+  }
+  return `starts in ${totalSecs}s`;
+}
+
+function updateLiveCountdowns() {
+  document.querySelectorAll('.cal-live-countdown').forEach(el => {
+    const d = el.dataset.date;
+    const t = el.dataset.time;
+    const isLive = el.dataset.live === 'true';
+    const str = getLiveCountdownString(d, t, isLive);
+    if (str && el.textContent !== str) {
+      el.textContent = str;
+    }
+  });
+
+  const heroCountdown = document.getElementById('room-hero-countdown');
+  if (heroCountdown) {
+    const d = heroCountdown.dataset.date;
+    const t = heroCountdown.dataset.time;
+    const str = getLiveCountdownString(d, t, false);
+    if (str && heroCountdown.textContent !== str) {
+      heroCountdown.textContent = str;
+    }
+  }
+}
+setInterval(updateLiveCountdowns, 1000);
+
+// -------------------------------------------------------------
+// PROGRESS BAR & NUMBER COUNT-UP ANIMATION HELPERS
+// -------------------------------------------------------------
+function animateNumberCountUp(el, target, duration = 850, suffix = '%') {
+  if (!el) return;
+  const currentText = el.textContent || '';
+  const match = currentText.match(/\d+/);
+  const startVal = match ? parseInt(match[0], 10) : 0;
+  if (startVal === target && currentText.includes(suffix)) {
+    return;
+  }
+  const startTime = performance.now();
+  function step(now) {
+    const elapsed = now - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const easeOut = 1 - Math.pow(1 - progress, 3);
+    const current = Math.round(startVal + (target - startVal) * easeOut);
+    el.textContent = `${current}${suffix}`;
+    if (progress < 1) {
+      requestAnimationFrame(step);
+    } else {
+      el.textContent = `${target}${suffix}`;
+    }
+  }
+  requestAnimationFrame(step);
+}
+
+function animateProgressBar(elFill, targetPct) {
+  if (!elFill) return;
+  requestAnimationFrame(() => {
+    elFill.style.width = `${Math.max(0, Math.min(100, targetPct))}%`;
+  });
+}
+
+// -------------------------------------------------------------
+// TASK DUE DATE HELPERS (MONOSPACE, CALENDAR ICON, URGENCY COLORING)
+// -------------------------------------------------------------
+function getTaskDueStatus(deadlineStr) {
+  if (!deadlineStr || deadlineStr === 'Flexible') {
+    return {
+      statusClass: 'due-grey',
+      label: deadlineStr || 'Flexible',
+      tooltip: 'Flexible Deadline'
+    };
+  }
+
+  const parts = deadlineStr.split('-').map(Number);
+  if (parts.length !== 3) {
+    return {
+      statusClass: 'due-grey',
+      label: deadlineStr,
+      tooltip: deadlineStr
+    };
+  }
+
+  const [year, month, day] = parts;
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const dueUtc = Date.UTC(year, month - 1, day);
+  const diffDays = Math.round((dueUtc - todayUtc) / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) {
+    return {
+      statusClass: 'due-red',
+      label: deadlineStr,
+      tooltip: `Overdue by ${Math.abs(diffDays)} day${Math.abs(diffDays) === 1 ? '' : 's'}`
+    };
+  } else if (diffDays <= 2) {
+    return {
+      statusClass: 'due-amber',
+      label: deadlineStr,
+      tooltip: diffDays === 0 ? 'Due Today' : (diffDays === 1 ? 'Due Tomorrow' : 'Due in 2 days')
+    };
+  } else {
+    return {
+      statusClass: 'due-grey',
+      label: deadlineStr,
+      tooltip: `Due in ${diffDays} days`
+    };
+  }
+}
+
+function renderTaskDueBadge(deadlineStr) {
+  const due = getTaskDueStatus(deadlineStr);
+  const calIcon = `<svg class="task-due-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`;
+  return `<span class="task-due-badge ${due.statusClass}" title="${due.tooltip}">${calIcon}<span>${due.label}</span></span>`;
 }
 
 // -------------------------------------------------------------
@@ -115,6 +315,135 @@ function showWorkspace() {
   document.getElementById('auth-screen')?.classList.add('hidden');
   document.getElementById('workspace-app')?.classList.remove('hidden');
   applyRolePermissions();
+  requestAnimationFrame(() => {
+    updateAllSegmentedGliders();
+  });
+}
+
+// =============================================================
+// Fluid Segmented Control Toggle Glider Engine
+// =============================================================
+function updateSegmentedGlider(control) {
+  if (!control) return;
+  let glider = control.querySelector('.segmented-glider');
+  let isNew = false;
+  if (!glider) {
+    glider = document.createElement('div');
+    glider.className = 'segmented-glider';
+    control.prepend(glider);
+    control.classList.add('has-glider');
+    isNew = true;
+  }
+
+  const activeTab = control.querySelector('.segmented-tab.active');
+  if (!activeTab || activeTab.offsetWidth === 0 || control.offsetParent === null) {
+    glider.style.opacity = '0';
+    return;
+  }
+
+  if (isNew) {
+    glider.style.transition = 'none';
+    glider.style.width = `${activeTab.offsetWidth}px`;
+    glider.style.height = `${activeTab.offsetHeight}px`;
+    glider.style.transform = `translate3d(${activeTab.offsetLeft}px, ${activeTab.offsetTop}px, 0)`;
+    glider.style.opacity = '1';
+    void glider.offsetHeight;
+    glider.style.transition = '';
+  } else {
+    glider.style.width = `${activeTab.offsetWidth}px`;
+    glider.style.height = `${activeTab.offsetHeight}px`;
+    glider.style.transform = `translate3d(${activeTab.offsetLeft}px, ${activeTab.offsetTop}px, 0)`;
+    glider.style.opacity = '1';
+  }
+}
+
+function updateAllSegmentedGliders() {
+  document.querySelectorAll('.segmented-control').forEach(control => {
+    updateSegmentedGlider(control);
+  });
+}
+
+function initSegmentedControls() {
+  document.querySelectorAll('.segmented-control').forEach(ctrl => {
+    updateSegmentedGlider(ctrl);
+    ctrl.addEventListener('click', (e) => {
+      if (e.target.closest('.segmented-tab')) {
+        requestAnimationFrame(() => updateSegmentedGlider(ctrl));
+      }
+    });
+  });
+  window.addEventListener('resize', updateAllSegmentedGliders, { passive: true });
+}
+
+// Settings Submenu Navigation Helpers
+function setSettingsSubmenuOpen(isOpen) {
+  const toggleBtn = document.getElementById('btn-toggle-settings-subitems');
+  const subitemsContainer = document.getElementById('nav-settings-subitems');
+  if (!subitemsContainer || !toggleBtn) return;
+  if (isOpen) {
+    subitemsContainer.classList.remove('collapsed');
+    toggleBtn.classList.add('expanded');
+    toggleBtn.setAttribute('aria-expanded', 'true');
+  } else {
+    subitemsContainer.classList.add('collapsed');
+    toggleBtn.classList.remove('expanded');
+    toggleBtn.setAttribute('aria-expanded', 'false');
+  }
+}
+
+function toggleSettingsSubmenu() {
+  const subitemsContainer = document.getElementById('nav-settings-subitems');
+  if (!subitemsContainer) return;
+  const isCurrentlyCollapsed = subitemsContainer.classList.contains('collapsed');
+  setSettingsSubmenuOpen(isCurrentlyCollapsed);
+}
+
+function updateActiveSubitem(activeTab) {
+  document.querySelectorAll('.nav-subitem').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.settingsTab === activeTab);
+  });
+}
+
+function switchSettingsSubtab(subtab = 'directory') {
+  const isHost = state.currentUser && !!state.currentUser.is_host;
+  if (!isHost && (subtab === 'permissions' || subtab === 'history' || subtab === 'snapshot')) {
+    showToast('Team Lead Only: This administrative section is managed by the Team Lead.', true);
+    return;
+  }
+
+  state.currentSettingsSubtab = subtab;
+
+  document.querySelectorAll('.settings-subpanel').forEach(p => p.classList.add('hidden'));
+  const targetPanel = document.getElementById(`panel-settings-${subtab}`);
+  targetPanel?.classList.remove('hidden');
+
+  if (subtab === 'directory') {
+    loadMembers().then(renderTeamRoster);
+  } else if (subtab === 'permissions') {
+    loadTickets();
+  } else if (subtab === 'history') {
+    loadAuditTrail();
+  }
+
+  updateActiveSubitem(subtab);
+
+  const titleEl = document.getElementById('settings-view-title');
+  const subtitleEl = document.getElementById('settings-view-subtitle');
+  if (titleEl && subtitleEl) {
+    if (subtab === 'directory') {
+      titleEl.textContent = 'Team Directory';
+      subtitleEl.textContent = 'Allowlisted team members, active participants, and role assignments';
+    } else if (subtab === 'permissions') {
+      titleEl.textContent = 'Permissions';
+      subtitleEl.textContent = 'Two-person rule approval pipeline and sensitive access governance';
+    } else if (subtab === 'history') {
+      titleEl.textContent = 'Activity History';
+      subtitleEl.textContent = 'Comprehensive audit log of system events, actions, and security trails';
+    } else if (subtab === 'snapshot') {
+      titleEl.textContent = 'Database Snapshots';
+      subtitleEl.textContent = 'Database backups, table snapshots, and disaster recovery exports';
+    }
+  }
 }
 
 // -------------------------------------------------------------
@@ -123,8 +452,42 @@ function showWorkspace() {
 function setupNavigation() {
   const navItems = document.querySelectorAll('.nav-item');
   navItems.forEach(item => {
-    item.addEventListener('click', () => {
+    item.addEventListener('click', (e) => {
+      // If clicking inside the dropdown toggle button, do not switch view from the parent nav-item
+      if (e.target.closest('#btn-toggle-settings-subitems')) {
+        return;
+      }
       switchView(item.dataset.view);
+      if (item.id === 'nav-item-peers-settings' && state.currentUser?.is_host) {
+        setSettingsSubmenuOpen(true);
+      }
+    });
+  });
+
+  // Settings Submenu Dropdown Toggle & Items
+  const toggleBtn = document.getElementById('btn-toggle-settings-subitems');
+  toggleBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleSettingsSubmenu();
+  });
+
+  toggleBtn?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleSettingsSubmenu();
+    }
+  });
+
+  // Subitem clicks inside settings submenu -> opens respective dashboard
+  document.querySelectorAll('.nav-subitem').forEach(subBtn => {
+    subBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const targetSubtab = subBtn.dataset.settingsTab;
+      if (!targetSubtab) return;
+
+      switchView('view-settings');
+      switchSettingsSubtab(targetSubtab);
     });
   });
 
@@ -142,6 +505,7 @@ function setupNavigation() {
     containerMine?.classList.remove('hidden');
     containerAll?.classList.add('hidden');
     filterPills?.classList.add('hidden');
+    updateSegmentedGlider(document.getElementById('task-view-mode-tabs'));
     loadPersonalDashboard();
   });
 
@@ -151,6 +515,18 @@ function setupNavigation() {
     containerAll?.classList.remove('hidden');
     containerMine?.classList.add('hidden');
     filterPills?.classList.remove('hidden');
+    updateSegmentedGlider(document.getElementById('task-view-mode-tabs'));
+    requestAnimationFrame(() => {
+      const glider = filterPills?.querySelector('.segmented-glider');
+      if (glider && glider.style.opacity === '0') {
+        glider.style.transition = 'none';
+        updateSegmentedGlider(filterPills);
+        void glider.offsetHeight;
+        glider.style.transition = '';
+      } else {
+        updateSegmentedGlider(filterPills);
+      }
+    });
     renderKanbanBoard();
   });
 
@@ -160,6 +536,7 @@ function setupNavigation() {
       document.querySelectorAll('#tasklets-tab-group button').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       state.taskletTab = btn.dataset.taskletTab;
+      updateSegmentedGlider(document.getElementById('tasklets-tab-group'));
       renderTasklets();
     });
   });
@@ -169,6 +546,7 @@ function setupNavigation() {
     btn.addEventListener('click', async () => {
       document.querySelectorAll('#voting-template-tabs button').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+      updateSegmentedGlider(document.getElementById('voting-template-tabs'));
       state.currentVotingSessionId = parseInt(btn.dataset.templateId, 10);
       state.unlinkedBallotToken = sessionStorage.getItem('ballot_token_' + state.currentVotingSessionId) || null;
       await loadVotingSession();
@@ -177,6 +555,7 @@ function setupNavigation() {
 
 
 
+<<<<<<< Updated upstream
   // Settings & Logs Subtabs
   document.querySelectorAll('#settings-subtabs .segmented-tab').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -186,19 +565,9 @@ function setupNavigation() {
         showToast('Team Lead Only: The administrative audit trail is restricted to the Team Lead.', true);
         return;
       }
+=======
+>>>>>>> Stashed changes
 
-      document.querySelectorAll('#settings-subtabs .segmented-tab').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-
-      document.querySelectorAll('.settings-subpanel').forEach(p => p.classList.add('hidden'));
-      const targetPanel = document.getElementById(`panel-settings-${subtab}`);
-      targetPanel?.classList.remove('hidden');
-
-      if (subtab === 'directory') renderTeamRoster();
-      else if (subtab === 'permissions') loadTickets();
-      else if (subtab === 'history') loadAuditTrail();
-    });
-  });
 
   // Call Room Quick Card Jump
   document.getElementById('card-call-room-quick')?.addEventListener('click', () => switchView('view-callroom'));
@@ -235,16 +604,16 @@ function switchView(viewId) {
     viewId = 'view-callroom';
   } else if (viewId === 'view-team') {
     viewId = state.currentUser?.is_host ? 'view-settings' : 'view-peers';
-    document.querySelector('#settings-subtabs [data-subtab="directory"]')?.click();
+    if (state.currentUser?.is_host) switchSettingsSubtab('directory');
   } else if (viewId === 'view-governance') {
     viewId = 'view-settings';
-    document.querySelector('#settings-subtabs [data-subtab="permissions"]')?.click();
+    switchSettingsSubtab('permissions');
   } else if (viewId === 'view-audit') {
     viewId = 'view-settings';
-    document.querySelector('#settings-subtabs [data-subtab="history"]')?.click();
+    switchSettingsSubtab('history');
   } else if (viewId === 'view-recovery') {
     viewId = 'view-settings';
-    document.querySelector('#settings-subtabs [data-subtab="snapshot"]')?.click();
+    switchSettingsSubtab('snapshot');
   }
 
   // Non-lead trying to view settings -> redirect to peers
@@ -260,6 +629,16 @@ function switchView(viewId) {
     view.classList.toggle('active', view.id === viewId);
   });
 
+  requestAnimationFrame(() => {
+    updateAllSegmentedGliders();
+  });
+
+  if (viewId === 'view-settings') {
+    switchSettingsSubtab(state.currentSettingsSubtab || 'directory');
+  } else {
+    updateActiveSubitem(null);
+  }
+
   if (viewId === 'view-tasks') {
     loadPersonalDashboard();
     renderKanbanBoard();
@@ -273,7 +652,7 @@ function switchView(viewId) {
     loadMembers().then(renderTeamRoster);
     loadTasklets();
   } else if (viewId === 'view-settings') {
-    loadMembers().then(renderTeamRoster);
+    switchSettingsSubtab(state.currentSettingsSubtab || 'directory');
   } else if (viewId === 'view-oracle') {
     loadOracleThreads();
   }
@@ -390,6 +769,11 @@ function applyRolePermissions() {
       navIcon4.innerHTML = `<svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
     }
     if (badgeTasklets) badgeTasklets.style.display = 'none';
+
+    const toggleSettingsBtn = document.getElementById('btn-toggle-settings-subitems');
+    const settingsSubitemsContainer = document.getElementById('nav-settings-subitems');
+    if (toggleSettingsBtn) toggleSettingsBtn.style.display = 'inline-flex';
+    if (settingsSubitemsContainer) settingsSubitemsContainer.style.display = 'flex';
   } else {
     if (productTag) productTag.textContent = 'Student Workspace';
     if (hostPill) {
@@ -407,6 +791,11 @@ function applyRolePermissions() {
       navIcon4.innerHTML = `<svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>`;
     }
     updateTaskletBadges();
+
+    const toggleSettingsBtn = document.getElementById('btn-toggle-settings-subitems');
+    const settingsSubitemsContainer = document.getElementById('nav-settings-subitems');
+    if (toggleSettingsBtn) toggleSettingsBtn.style.display = 'none';
+    if (settingsSubitemsContainer) settingsSubitemsContainer.style.display = 'none';
   }
 
   // Authorator-only action buttons in the UI
@@ -568,9 +957,10 @@ function renderPersonalDashboard() {
   // Completion stats
   const stats = p.stats || {};
   const elComp = document.getElementById('personal-completion-rate');
-  if (elComp) elComp.textContent = `${stats.completionRate || 0}%`;
   const elFill = document.getElementById('personal-tasks-fill');
-  if (elFill) elFill.style.width = `${stats.completionRate || 0}%`;
+  const targetRate = stats.completionRate || 0;
+  if (elComp) animateNumberCountUp(elComp, targetRate);
+  if (elFill) animateProgressBar(elFill, targetRate);
   const elSub = document.getElementById('personal-tasks-subtext');
   if (elSub) elSub.textContent = `${stats.completed || 0} Completed · ${stats.inProgress || 0} In Progress · ${stats.todo || 0} To Do`;
   const elBadge = document.getElementById('badge-my-tasks-count');
@@ -616,12 +1006,24 @@ function renderPersonalDashboard() {
         const row = document.createElement('div');
         row.className = 'compact-task-row';
         const hasDeliverable = !!task.deliverable_url;
+        const dueHtml = renderTaskDueBadge(task.deadline);
 
         row.innerHTML = `
+<<<<<<< Updated upstream
           <div style="flex: 1; cursor: pointer;" class="btn-inspect-task">
             <div class="compact-task-title">${task.title} <span style="font-size:11px; color:var(--google-blue); margin-left:6px;">(v${task.version || 1})</span></div>
             <div class="compact-task-assignee">Target Date: <strong>${task.deadline || 'Flexible'}</strong> · Status: <strong>${task.status}</strong></div>
             ${hasDeliverable ? `<div style="margin-top:4px;"><a href="${task.deliverable_url}" target="_blank" class="deliverable-link">Deliverable: ${task.deliverable_url}</a></div>` : ''}
+=======
+          <div>
+            <div class="compact-task-title">${task.title}</div>
+            <div class="compact-task-assignee" style="display:flex; align-items:center; gap:6px; margin-top:3px; flex-wrap:wrap;">
+              <span>Target:</span>
+              ${dueHtml}
+              <span style="color:var(--text-muted); margin-left:2px;">· Status: <strong>${task.status}</strong></span>
+            </div>
+            ${hasDeliverable ? `<div style="margin-top:4px;"><a href="${task.deliverable_url}" target="_blank" class="deliverable-link">PR: ${task.deliverable_url}</a></div>` : ''}
+>>>>>>> Stashed changes
           </div>
           <div style="display:flex; gap:6px; align-items:center;">
             <button class="btn btn-outlined btn-sm btn-inspect-task" title="View edit history and revisions">History</button>
@@ -709,13 +1111,15 @@ function renderPersonalDashboard() {
         else if (ev.target_audience && ev.target_audience.startsWith('[')) audienceLabel = 'Selected';
         else if (ev.assignee_name) audienceLabel = ev.assignee_name;
 
+        const dtFormatted = formatEventDisplayDateTime(ev.event_date, ev.time_label);
+        const countdownStr = getLiveCountdownString(ev.event_date, ev.time_label, ev.is_live);
         row.innerHTML = `
           <div>
             <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
               <span class="ping-title">${ev.title}</span>
               ${ev.is_live ? '<span class="live-pulse-badge" style="font-size:9.5px; padding:2px 6px;">LIVE NOW</span>' : ''}
             </div>
-            <div class="ping-meta">${ev.event_date} · ${ev.time_label} · <span style="color:var(--google-blue);">${slotLabel}</span> · <span style="color:var(--text-muted);">For: ${audienceLabel}</span></div>
+            <div class="ping-meta">${dtFormatted} · <span class="cal-countdown-badge cal-live-countdown" data-date="${ev.event_date}" data-time="${ev.time_label}" data-live="${ev.is_live ? 'true' : 'false'}">${countdownStr}</span> · <span style="color:var(--google-blue);">${slotLabel}</span> · <span style="color:var(--text-muted);">For: ${audienceLabel}</span></div>
           </div>
           <div style="display:flex; align-items:center; gap:8px;">
             ${ev.join_url ? `<button class="meet-link-btn" onclick="openDockedCallById(${ev.id})">Join Call</button>` : `<span class="cal-type-badge cal-tag-${ev.event_type}">${ev.event_type}</span>`}
@@ -839,19 +1243,25 @@ function updateRoomStatusWidget() {
     if (quickBadge) {
       quickBadge.innerHTML = `<span class="room-status-dot pulse-green" style="display:inline-block; margin-right:4px; vertical-align:middle; width:8px; height:8px;"></span> Live Sync`;
     }
+    const quickRoomText = document.getElementById('quick-room-text');
+    const quickRoomSubtext = document.getElementById('quick-room-subtext');
+    if (quickRoomText) quickRoomText.textContent = liveEv.title;
+    if (quickRoomSubtext) quickRoomSubtext.textContent = 'Live call in progress · Click to join';
   } else if (scheduledEv) {
     if (dot) dot.className = 'room-status-dot dot-scheduled';
     if (statusText) statusText.textContent = `Scheduled: ${scheduledEv.title}`;
-    if (subtitleText) subtitleText.textContent = `${scheduledEv.time_label || scheduledEv.event_date} · Google Meet bridge ready`;
+    const dtFormatted = formatEventDisplayDateTime(scheduledEv.event_date, scheduledEv.time_label);
+    const countdown = getLiveCountdownString(scheduledEv.event_date, scheduledEv.time_label, false);
+    if (subtitleText) subtitleText.textContent = `${dtFormatted} · ${countdown} · Google Meet bridge ready`;
 
     if (heroDot) heroDot.className = 'room-status-dot dot-scheduled';
     if (heroBadge) {
       heroBadge.textContent = 'SCHEDULED';
-      heroBadge.style.color = 'var(--google-yellow)';
+      heroBadge.style.color = 'var(--google-amber)';
     }
     if (heroTitle) heroTitle.textContent = `Upcoming: ${scheduledEv.title}`;
-    if (heroDesc) heroDesc.textContent = `Scheduled for ${scheduledEv.time_label || scheduledEv.event_date}. Bridge slot reserved. Lead can start call early.`;
-    if (heroCard) heroCard.style.borderLeft = '3px solid var(--google-yellow)';
+    if (heroDesc) heroDesc.innerHTML = `Scheduled for <strong>${dtFormatted}</strong> (<span class="cal-hero-countdown-text" id="room-hero-countdown" data-date="${scheduledEv.event_date}" data-time="${scheduledEv.time_label}">${countdown}</span>). Bridge slot reserved. Lead can start call early.`;
+    if (heroCard) heroCard.style.borderLeft = '3px solid var(--google-amber)';
 
     if (btnJoin) {
       btnJoin.style.display = 'inline-flex';
@@ -874,6 +1284,10 @@ function updateRoomStatusWidget() {
     if (quickBadge) {
       quickBadge.innerHTML = `<span class="room-status-dot dot-scheduled" style="display:inline-block; margin-right:4px; vertical-align:middle; width:8px; height:8px;"></span> Scheduled`;
     }
+    const quickRoomText = document.getElementById('quick-room-text');
+    const quickRoomSubtext = document.getElementById('quick-room-subtext');
+    if (quickRoomText) quickRoomText.textContent = dtFormatted;
+    if (quickRoomSubtext) quickRoomSubtext.innerHTML = `<span class="cal-live-countdown" data-date="${scheduledEv.event_date}" data-time="${scheduledEv.time_label}">${countdown}</span> · Click to open Call Room`;
   } else {
     if (dot) dot.className = 'room-status-dot idle-gray';
     if (statusText) statusText.textContent = 'Room Available (No Active Call)';
@@ -914,6 +1328,10 @@ function updateRoomStatusWidget() {
     if (quickBadge) {
       quickBadge.innerHTML = `<span class="room-status-dot idle-gray" style="display:inline-block; margin-right:4px; vertical-align:middle; width:8px; height:8px;"></span> Available`;
     }
+    const quickRoomText = document.getElementById('quick-room-text');
+    const quickRoomSubtext = document.getElementById('quick-room-subtext');
+    if (quickRoomText) quickRoomText.textContent = 'No active call';
+    if (quickRoomSubtext) quickRoomSubtext.textContent = 'Click to open Call Room';
   }
 }
 
@@ -930,9 +1348,9 @@ function renderGlobalHub() {
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
   const elComp = document.getElementById('global-team-completion');
-  if (elComp) elComp.textContent = `${pct}%`;
   const elFill = document.getElementById('global-team-fill');
-  if (elFill) elFill.style.width = `${pct}%`;
+  if (elComp) animateNumberCountUp(elComp, pct);
+  if (elFill) animateProgressBar(elFill, pct);
   const elBrk = document.getElementById('global-team-breakdown');
   if (elBrk) elBrk.textContent = `${completed} Completed • ${inProgress} In Progress • ${todo} Backlog`;
 
@@ -1046,7 +1464,11 @@ function createKanbanCard(task) {
   card.innerHTML = `
     <div class="card-top-bar">
       <span class="track-badge track-${task.track}">${task.track.toUpperCase()}</span>
+<<<<<<< Updated upstream
       <span class="occ-version-pill btn-inspect-task" style="cursor: pointer;" title="Click to inspect task version history and audit trail">v${task.version} · Due: ${task.deadline || 'Flexible'}</span>
+=======
+      ${renderTaskDueBadge(task.deadline)}
+>>>>>>> Stashed changes
     </div>
     
     <div class="kanban-card-body btn-inspect-task" style="cursor: pointer;" title="Click to inspect task history & revisions">
@@ -1178,9 +1600,15 @@ function renderVotingSession() {
   const s = state.votingSession;
   const isHost = !!(state.currentUser && state.currentUser.is_host);
 
+<<<<<<< Updated upstream
   const idleContainer = document.getElementById('voting-idle-container');
   const activeContainer = document.getElementById('voting-active-container');
   const closedContainer = document.getElementById('voting-closed-container');
+=======
+  document.getElementById('voting-session-headline').textContent = s.session.title;
+  document.getElementById('voting-session-summary').textContent = s.session.description;
+  updateSegmentedGlider(document.getElementById('voting-template-tabs'));
+>>>>>>> Stashed changes
 
   const openLaunchBtn = document.getElementById('btn-open-launch-voting');
   const idleLaunchBtn = document.getElementById('btn-idle-launch-voting');
@@ -1880,6 +2308,9 @@ function renderCalendarEvents() {
     else if (ev.target_audience && ev.target_audience.startsWith('[')) audienceText = 'Selected Guests';
     else if (ev.assignee_name) audienceText = `Target: ${ev.assignee_name}`;
 
+    const dateTimeLabel = formatEventDisplayDateTime(ev.event_date, ev.time_label);
+    const countdown = getLiveCountdownString(ev.event_date, ev.time_label, ev.is_live);
+
     card.innerHTML = `
       <div class="cal-card-top">
         <div style="display:flex; align-items:center; gap:6px;">
@@ -1892,7 +2323,10 @@ function renderCalendarEvents() {
       <div>
         <h4 class="cal-event-title">${ev.title}</h4>
         ${ev.description ? `<p style="font-size:12px; color:var(--text-secondary); margin:4px 0 6px 0; line-height:1.4;">${ev.description}</p>` : ''}
-        <div class="cal-date-time">${ev.event_date} · ${ev.time_label}</div>
+        <div class="cal-date-time">
+          <span>${dateTimeLabel}</span>
+          <span class="cal-countdown-badge cal-live-countdown" data-date="${ev.event_date}" data-time="${ev.time_label}" data-live="${ev.is_live ? 'true' : 'false'}">${countdown}</span>
+        </div>
         ${isMeeting ? `<div style="font-size:11.5px; color:var(--google-blue); margin-top:4px;">${slotLabel}</div>` : ''}
       </div>
 
@@ -2814,6 +3248,8 @@ function updateTaskletBadges() {
   const countFbSentEl = document.getElementById('count-feedback-sent');
   if (countFbSentEl) countFbSentEl.textContent = feedbackSent.length;
 
+  updateSegmentedGlider(document.getElementById('tasklets-tab-group'));
+
   const badgeEl = document.getElementById('badge-tasklets-count');
   if (badgeEl) {
     badgeEl.textContent = pendingTasks;
@@ -2839,8 +3275,14 @@ function renderTasklets() {
       ? microTasks.filter(t => t.receiver_id === currentUserId)
       : microTasks.filter(t => t.sender_id === currentUserId);
 
+<<<<<<< Updated upstream
     const targetContainer = isReceived ? containerRec : containerSent;
     targetContainer.innerHTML = '';
+=======
+  const targetContainer = isReceived ? containerRec : containerSent;
+  targetContainer.innerHTML = '';
+  updateSegmentedGlider(document.getElementById('tasklets-tab-group'));
+>>>>>>> Stashed changes
 
     if (taskList.length === 0) {
       targetContainer.innerHTML = `
@@ -3044,9 +3486,39 @@ export function closeDockedCall() {
 
 function setupGlobalSearch() {
   const input = document.getElementById('global-search-input');
+<<<<<<< Updated upstream
   input?.addEventListener('click', (e) => {
     e.preventDefault();
     openCommandPalette();
+=======
+  input?.addEventListener('input', (e) => {
+    const term = e.target.value.toLowerCase().trim();
+    if (!term) return;
+
+    if (term.includes('my') || term.includes('mine')) {
+      switchView('view-tasks');
+      document.getElementById('tab-tasks-mine')?.click();
+    } else if (term.includes('all') || term.includes('task') || term.includes('sprint') || term.includes('board')) {
+      switchView('view-tasks');
+      document.getElementById('tab-tasks-all')?.click();
+    } else if (term.includes('vote') || term.includes('ballot') || term.includes('peer') || term.includes('review')) {
+      switchView('view-voting');
+    } else if (term.includes('cal') || term.includes('meet') || term.includes('call') || term.includes('room')) {
+      switchView('view-callroom');
+    } else if (term.includes('roster') || term.includes('team') || term.includes('directory')) {
+      switchView('view-settings');
+      switchSettingsSubtab('directory');
+    } else if (term.includes('permission') || term.includes('ticket') || term.includes('access')) {
+      switchView('view-settings');
+      switchSettingsSubtab('permissions');
+    } else if (term.includes('audit') || term.includes('history') || term.includes('log')) {
+      switchView('view-settings');
+      switchSettingsSubtab('history');
+    } else if (term.includes('snapshot') || term.includes('backup') || term.includes('data')) {
+      switchView('view-settings');
+      switchSettingsSubtab('snapshot');
+    }
+>>>>>>> Stashed changes
   });
   input?.addEventListener('focus', (e) => {
     e.preventDefault();
@@ -3595,14 +4067,17 @@ File:            frontier_sprint_deliverables_${new Date().toISOString().slice(0
 }
 
 function setupEventListeners() {
-  document.querySelectorAll('#task-filter-pills .pill').forEach(pill => {
+  document.querySelectorAll('#task-filter-pills button').forEach(pill => {
     pill.addEventListener('click', () => {
-      document.querySelectorAll('#task-filter-pills .pill').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('#task-filter-pills button').forEach(p => p.classList.remove('active'));
       pill.classList.add('active');
+      updateSegmentedGlider(document.getElementById('task-filter-pills'));
       state.taskFilter = pill.dataset.filter;
       renderKanbanBoard();
     });
   });
+
+  initSegmentedControls();
 
   document.getElementById('btn-claim-blind-token')?.addEventListener('click', claimBlindToken);
   document.getElementById('form-submit-ballot')?.addEventListener('submit', castAnonymousBallot);
