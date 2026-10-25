@@ -855,8 +855,9 @@ function applyRolePermissions() {
   if (!state.currentUser) return;
   const isHost = !!state.currentUser.is_host;
 
-  // Header branding and host indicator
+  // Header and Sidebar branding and host indicator
   const hostPill = document.getElementById('header-host-indicator');
+  const sidebarHost = document.getElementById('sidebar-host-indicator');
   const roleIndicator = document.getElementById('sidebar-role-indicator');
   const roleDesc = document.getElementById('sidebar-role-desc');
   const productTag = document.querySelector('.workspace-product-tag');
@@ -880,6 +881,12 @@ function applyRolePermissions() {
       hostPill.style.backgroundColor = 'var(--google-blue-container)';
       hostPill.style.color = 'var(--google-blue-text)';
     }
+    if (sidebarHost) {
+      sidebarHost.textContent = 'LEAD';
+      sidebarHost.style.display = 'inline-block';
+      sidebarHost.style.backgroundColor = 'var(--google-blue-container)';
+      sidebarHost.style.color = 'var(--google-blue-text)';
+    }
     if (roleIndicator) roleIndicator.textContent = 'Role: Team Lead';
     if (roleDesc) roleDesc.textContent = 'Lead access: allot tasks, trigger sync calls, review sessions.';
 
@@ -893,6 +900,12 @@ function applyRolePermissions() {
       hostPill.style.display = 'inline-block';
       hostPill.style.backgroundColor = 'var(--bg-surface-elevated)';
       hostPill.style.color = 'var(--text-secondary)';
+    }
+    if (sidebarHost) {
+      sidebarHost.textContent = 'MEMBER';
+      sidebarHost.style.display = 'inline-block';
+      sidebarHost.style.backgroundColor = 'var(--bg-surface-elevated)';
+      sidebarHost.style.color = 'var(--text-secondary)';
     }
     if (roleIndicator) roleIndicator.textContent = 'Role: Member';
     if (roleDesc) roleDesc.textContent = 'Member access: my tasks, call room, peer review, and peers.';
@@ -977,23 +990,66 @@ async function loadMembers() {
 
 function updateHeaderUserChip() {
   if (!state.currentUser) return;
-  document.getElementById('header-user-avatar').textContent = getInitials(state.currentUser.name);
-  document.getElementById('header-user-name').textContent = state.currentUser.name;
-  document.getElementById('header-user-role').textContent = `${state.currentUser.role} (${state.currentUser.team_track})`;
+  const initials = getInitials(state.currentUser.name);
+  const roleText = `${state.currentUser.role} (${state.currentUser.team_track})`;
+
+  // Header chip (Mobile circular avatar + desktop fallback)
+  const headerAvatar = document.getElementById('header-user-avatar');
+  const headerName = document.getElementById('header-user-name');
+  const headerRole = document.getElementById('header-user-role');
+  if (headerAvatar) headerAvatar.textContent = initials;
+  if (headerName) headerName.textContent = state.currentUser.name;
+  if (headerRole) headerRole.textContent = roleText;
+
+  // Sidebar profile card (Desktop bottom-left)
+  const sidebarAvatar = document.getElementById('sidebar-user-avatar');
+  const sidebarName = document.getElementById('sidebar-user-name');
+  const sidebarRole = document.getElementById('sidebar-user-role');
+  const sidebarHost = document.getElementById('sidebar-host-indicator');
+  if (sidebarAvatar) sidebarAvatar.textContent = initials;
+  if (sidebarName) sidebarName.textContent = state.currentUser.name;
+  if (sidebarRole) sidebarRole.textContent = roleText;
+  if (sidebarHost) {
+    sidebarHost.style.display = state.currentUser.is_host ? 'inline-block' : 'none';
+  }
+
   applyRolePermissions();
 }
 
 function setupPersonaDropdown() {
-  const trigger = document.getElementById('user-chip-menu-trigger');
+  const triggerHeader = document.getElementById('user-chip-menu-trigger');
+  const triggerSidebar = document.getElementById('sidebar-user-profile');
   const menu = document.getElementById('persona-dropdown-menu');
+  if (!menu) return;
 
-  trigger.addEventListener('click', (e) => {
+  function toggleDropdown(e, source) {
     e.stopPropagation();
-    menu.classList.toggle('hidden');
+    const isHidden = menu.classList.contains('hidden');
+    if (isHidden) {
+      if (source === 'sidebar' && window.innerWidth > 768) {
+        menu.classList.add('desktop-sidebar-menu');
+      } else {
+        menu.classList.remove('desktop-sidebar-menu');
+      }
+      menu.classList.remove('hidden');
+    } else {
+      menu.classList.add('hidden');
+    }
+  }
+
+  triggerHeader?.addEventListener('click', (e) => toggleDropdown(e, 'header'));
+  triggerSidebar?.addEventListener('click', (e) => toggleDropdown(e, 'sidebar'));
+  triggerSidebar?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggleDropdown(e, 'sidebar');
+    }
   });
 
   document.addEventListener('click', (e) => {
-    if (!menu.contains(e.target) && !trigger.contains(e.target)) {
+    if (!menu.contains(e.target) &&
+        !triggerHeader?.contains(e.target) &&
+        !triggerSidebar?.contains(e.target)) {
       menu.classList.add('hidden');
     }
   });

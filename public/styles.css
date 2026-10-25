@@ -278,6 +278,17 @@ body {
   z-index: 200;
 }
 
+.persona-menu.desktop-sidebar-menu {
+  position: fixed !important;
+  bottom: 72px !important;
+  left: 14px !important;
+  top: auto !important;
+  right: auto !important;
+  width: 280px !important;
+  z-index: 1200 !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--border-default);
+}
+
 .persona-menu-header {
   padding: 14px 16px;
   border-bottom: 1px solid var(--border-subtle);
@@ -630,6 +641,114 @@ body {
   text-overflow: ellipsis;
 }
 
+/* Sidebar User Profile Card (Replaces obsolete Role Context Box) */
+.sidebar-user-card {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.2, 0, 0, 1);
+  user-select: none;
+  position: relative;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.sidebar-user-card:hover {
+  background-color: var(--bg-surface-elevated);
+  border-color: var(--border-default);
+  transform: translateY(-1px);
+}
+
+.sidebar-user-card:focus-visible {
+  outline: 2px solid var(--google-blue);
+  outline-offset: 2px;
+}
+
+.sidebar-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.sidebar-avatar-wrap .user-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+  background-color: var(--google-blue-container);
+  color: var(--google-blue-text);
+  border: 1.5px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-avatar-wrap .user-status-dot {
+  position: absolute;
+  bottom: 0px;
+  right: 0px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #81c995;
+  border: 1.5px solid var(--bg-surface);
+}
+
+.sidebar-user-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-user-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sidebar-user-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-user-role {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-user-more-btn {
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.sidebar-user-card:hover .sidebar-user-more-btn {
+  opacity: 1;
+  color: var(--text-primary);
+}
+
+/* Legacy fallback support */
 .sidebar-bottom-card {
   background-color: var(--bg-surface);
   border: 1px solid var(--border-subtle);
