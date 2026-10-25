@@ -1,0 +1,566 @@
+/**
+ * Frontier AI Workspace — Mobile Navigation Styles (mobile-nav.css)
+ * Screen widths <= 768px:
+ * - Hides desktop sidebar & old hamburger button
+ * - Expands content canvas full-width with safe-area bottom padding (88px)
+ * - 48px floating action button (FAB) in bottom-right corner with 180deg rotating chevron
+ * - Vertical animated stack of all navigation items (>=44px touch targets)
+ * - Accordion expansion for Settings & Logs 4 sub-pages
+ * - Top-bar simplification (avatar + role badge only)
+ * - 1-column responsive stacking for stat cards & page header buttons
+ * Desktop (>768px) remains 100% untouched.
+ */
+
+/* ==========================================================================
+   1. DESKTOP GUARD (>768px) — HIDE ALL MOBILE NAV OVERLAYS
+   ========================================================================== */
+@media (min-width: 769px) {
+  .mobile-nav-fab,
+  .mobile-nav-stack,
+  .mobile-nav-backdrop {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+}
+
+/* ==========================================================================
+   2. MOBILE BREAKPOINT (<=768px)
+   ========================================================================== */
+@media (max-width: 768px) {
+
+  /* --- Requirement 1: Hide sidebar and hamburger, expand content --- */
+  #sidebar,
+  .workspace-sidebar,
+  #btn-toggle-sidebar {
+    display: none !important;
+  }
+
+  .workspace-body {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+
+  .workspace-canvas {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    /* Add ~88px bottom padding to guarantee floating button never covers content */
+    padding: 16px 16px calc(88px + env(safe-area-inset-bottom, 0px)) 16px !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  .workspace-view {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  /* --- Requirement 8: Top Bar Simplification --- */
+  .workspace-header {
+    padding: 0 12px !important;
+    gap: 8px !important;
+  }
+
+  .header-left {
+    min-width: 0 !important;
+    flex-shrink: 1 !important;
+    gap: 8px !important;
+  }
+
+  .brand-pill {
+    gap: 8px !important;
+  }
+
+  .workspace-product-tag {
+    display: none !important;
+  }
+
+  .workspace-org-name {
+    font-size: 14px !important;
+    white-space: nowrap !important;
+  }
+
+  .header-center {
+    display: none !important;
+  }
+
+  .header-right {
+    margin-left: auto !important;
+  }
+
+  /* In user chip: hide user name text, show only avatar and role badge */
+  .account-chip {
+    padding: 3px 8px 3px 4px !important;
+    gap: 6px !important;
+    min-width: 0 !important;
+  }
+
+  .account-chip .user-name {
+    display: none !important;
+  }
+
+  .account-chip .chip-dropdown-arrow {
+    display: none !important;
+  }
+
+  .account-chip .user-avatar {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 11px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .account-chip .user-details {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 5px !important;
+  }
+
+  .account-chip .user-name-row {
+    display: inline-flex !important;
+    align-items: center !important;
+  }
+
+  .account-chip .user-role-badge {
+    display: inline-block !important;
+    font-size: 10.5px !important;
+    color: var(--text-muted, #9aa0a6) !important;
+    white-space: nowrap !important;
+  }
+
+  .account-chip .host-pill-tag {
+    font-size: 9.5px !important;
+    padding: 2px 6px !important;
+    line-height: 1.2 !important;
+  }
+
+  /* Persona dropdown on mobile */
+  .persona-menu {
+    position: fixed !important;
+    top: 54px !important;
+    right: 12px !important;
+    left: 12px !important;
+    width: auto !important;
+    max-width: calc(100vw - 24px) !important;
+    z-index: 1100 !important;
+  }
+
+  /* --- Requirement 8: Stat Cards & Page Header Buttons Stack to 1 Column --- */
+  .view-header {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .view-header > div:first-child {
+    width: 100% !important;
+  }
+
+  .header-action-group {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+
+  .header-action-group .btn {
+    width: 100% !important;
+    min-height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+  }
+
+  /* Stat cards (KPI grid) stack to 1 column */
+  .kpi-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    margin-bottom: 18px !important;
+    width: 100% !important;
+  }
+
+  .kpi-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Other multi-column grids stacked cleanly for mobile */
+  .dashboard-split-grid,
+  .voting-workspace-grid,
+  .team-roster-grid,
+  .kanban-board,
+  .form-row {
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+  }
+
+  /* Segmented tabs scroll horizontally if needed without wrapping */
+  .segmented-control {
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap !important;
+  }
+
+  .segmented-control::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   3. FLOATING ACTION BUTTON (FAB) & MOBILE NAVIGATION STACK
+   ========================================================================== */
+
+/* Click-outside backdrop */
+.mobile-nav-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 998;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 180ms ease, visibility 180ms;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.mobile-nav-backdrop.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* Round Floating Action Button (FAB) — Matches Workspace Dark Background */
+.mobile-nav-fab {
+  position: fixed;
+  right: calc(16px + env(safe-area-inset-right, 0px));
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: var(--bg-surface-elevated, #28292a);
+  color: var(--text-primary, #e3e3e3);
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.16));
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.65), 0 2px 6px rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1000;
+  transition: transform 180ms cubic-bezier(0.2, 0, 0, 1),
+              opacity 180ms ease,
+              background-color 150ms ease,
+              border-color 150ms ease,
+              color 150ms ease;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  padding: 0;
+}
+
+.mobile-nav-fab:hover {
+  background-color: var(--bg-surface-hover, #353739);
+  border-color: var(--border-active, rgba(255, 255, 255, 0.28));
+  color: #ffffff;
+}
+
+.mobile-nav-fab:active {
+  transform: scale(0.94);
+  background-color: var(--bg-surface, #1e1f20);
+}
+
+.mobile-nav-fab[aria-expanded="true"] {
+  background-color: var(--bg-surface, #1e1f20);
+  border-color: var(--google-blue, #8ab4f8);
+  color: var(--google-blue-text, #a8c7fa);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(138, 180, 248, 0.3);
+}
+
+.mobile-nav-fab:focus-visible {
+  outline: 2px solid var(--google-blue-text, #a8c7fa);
+  outline-offset: 3px;
+}
+
+/* Chevron Icon (rotates 180 degrees when open) */
+.mobile-nav-fab .mobile-fab-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
+  will-change: transform;
+}
+
+.mobile-nav-fab[aria-expanded="true"] .mobile-fab-icon {
+  transform: rotate(180deg);
+}
+
+/* Scroll Hide State (hide while scrolling down, show when scrolling up) */
+.mobile-nav-fab.fab-hidden {
+  transform: translateY(90px) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Navigation Menu Stack (Opens vertically above the FAB) */
+.mobile-nav-stack {
+  position: fixed;
+  right: calc(16px + env(safe-area-inset-right, 0px));
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  width: min(calc(100vw - 32px), 310px);
+  max-height: calc(100vh - 96px - env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background-color: var(--bg-surface, #1e1f20);
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.14));
+  border-radius: 18px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  padding: 8px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  box-sizing: border-box;
+
+  /* Closed animation state: short fade and slide (180ms) */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(12px) scale(0.96);
+  transform-origin: bottom right;
+  transition: opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
+              transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+              visibility 180ms;
+}
+
+.mobile-nav-stack.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+/* Header label inside mobile stack */
+.mobile-nav-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px 6px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: var(--text-muted, #9aa0a6);
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+/* Individual navigation item in mobile stack (at least 44px tall) */
+.mobile-nav-item {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary, #c4c7c5);
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+.mobile-nav-item:hover,
+.mobile-nav-item:focus-visible {
+  background-color: var(--bg-surface-elevated, #28292a);
+  color: var(--text-primary, #e3e3e3);
+}
+
+.mobile-nav-item:focus-visible {
+  outline: 2px solid var(--google-blue-text, #a8c7fa);
+  outline-offset: -2px;
+}
+
+/* Active Highlight */
+.mobile-nav-item.active {
+  background-color: var(--google-blue-container, rgba(66, 133, 244, 0.18));
+  color: var(--google-blue-text, #a8c7fa);
+  font-weight: 600;
+}
+
+.mobile-nav-item.active .mobile-nav-icon,
+.mobile-nav-item.active svg {
+  color: var(--google-blue, #8ab4f8);
+}
+
+.mobile-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--text-secondary, #c4c7c5);
+}
+
+.mobile-nav-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Badges & Dots inside mobile nav items */
+.mobile-nav-badge {
+  font-size: 11px;
+  font-weight: 600;
+  background-color: var(--bg-surface-elevated, #28292a);
+  color: var(--text-secondary, #c4c7c5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 2px 8px;
+  border-radius: 100px;
+  margin-left: auto;
+  line-height: 1.2;
+}
+
+.mobile-nav-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.mobile-nav-dot.idle {
+  background-color: #9aa0a6;
+}
+
+.mobile-nav-dot.live {
+  background-color: #81c995;
+  box-shadow: 0 0 8px rgba(129, 201, 149, 0.7);
+}
+
+.mobile-nav-dot.scheduled {
+  background-color: #fdd663;
+}
+
+/* Expandable Settings & Logs Item */
+.mobile-nav-expandable {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.mobile-nav-caret {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 180ms ease;
+  color: var(--text-muted, #9aa0a6);
+}
+
+.mobile-nav-expand-btn[aria-expanded="true"] .mobile-nav-caret {
+  transform: rotate(180deg);
+}
+
+/* Settings & Logs Sub-pages Group */
+.mobile-subnav-group {
+  display: none;
+  flex-direction: column;
+  padding-left: 20px;
+  gap: 2px;
+  margin-top: 2px;
+  margin-bottom: 4px;
+  border-left: 2px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  margin-left: 18px;
+}
+
+.mobile-subnav-group.expanded {
+  display: flex;
+}
+
+/* Sub-page Item inside Settings & Logs (at least 44px tall) */
+.mobile-subnav-item {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #9aa0a6);
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+.mobile-subnav-item:hover,
+.mobile-subnav-item:focus-visible {
+  background-color: var(--bg-surface-elevated, #28292a);
+  color: var(--text-primary, #e3e3e3);
+}
+
+.mobile-subnav-item:focus-visible {
+  outline: 2px solid var(--google-blue-text, #a8c7fa);
+  outline-offset: -2px;
+}
+
+.mobile-subnav-item.active {
+  color: var(--google-blue-text, #a8c7fa);
+  font-weight: 600;
+  background-color: rgba(66, 133, 244, 0.12);
+}
+
+/* ==========================================================================
+   4. REDUCED MOTION SUPPORT (Requirement 4)
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .mobile-nav-fab,
+  .mobile-nav-fab .mobile-fab-icon,
+  .mobile-nav-stack,
+  .mobile-nav-backdrop,
+  .mobile-nav-caret,
+  .mobile-subnav-group {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .mobile-nav-fab[aria-expanded="true"] .mobile-fab-icon {
+    transform: none !important;
+  }
+
+  .mobile-nav-expand-btn[aria-expanded="true"] .mobile-nav-caret {
+    transform: none !important;
+  }
+}

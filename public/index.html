@@ -8,6 +8,19 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="mobile-nav.css">
+  <link rel="stylesheet" href="oracle-panel.css">
+  <script>
+    // Immediate session check to eliminate FOUC / flickering
+    if (localStorage.getItem('frontier_session')) {
+      document.documentElement.classList.add('has-session');
+    }
+  </script>
+  <style>
+    /* Immediate layout stabilization */
+    html.has-session #workspace-app { display: flex !important; }
+    html.has-session #auth-screen { display: none !important; }
+  </style>
 </head>
 <body>
 
@@ -18,7 +31,7 @@
   </div>
 
   <!-- ======================================================== -->
-  <!-- AUTH SCREEN: GOOGLE WORKSPACE STYLE LOGIN UI -->
+  <!-- AUTH SCREEN: GOOGLE WORKSPACE STYLE LOGIN UI (BYPASS ACTIVE) -->
   <!-- ======================================================== -->
   <div id="auth-screen" class="auth-screen-layout">
     <div class="auth-card">
@@ -86,6 +99,13 @@
 
       <!-- Right Account / Persona Switcher Chip -->
       <div class="header-right">
+        <!-- Frontier Oracle AI Topbar Button -->
+        <button id="btn-oracle-topbar" class="oracle-topbar-btn" title="Frontier Oracle (Ctrl+/)" data-tooltip="Frontier Oracle (Ctrl+/)" aria-label="Frontier Oracle (Ctrl+/)" aria-expanded="false" aria-controls="oracle-side-panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+          </svg>
+        </button>
+
         <div class="account-chip" id="user-chip-menu-trigger" title="Switch active profile">
           <div class="user-avatar" id="header-user-avatar">AV</div>
           <div class="user-details">
@@ -164,10 +184,9 @@
               <span class="nav-subitem-label">Database snapshots</span>
             </button>
           </div>
-          <button class="nav-item" data-view="view-oracle" id="nav-item-oracle">
-            <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-            <span class="nav-label">Oracle AI</span>
-            <span class="nav-badge" style="background: rgba(168, 199, 250, 0.15); color: #a8c7fa;">AI</span>
+          <button class="nav-item" id="nav-item-direct-settings" data-view="view-settings">
+            <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            <span class="nav-label">Settings & Logs</span>
           </button>
         </div>
 
@@ -812,6 +831,188 @@
 
       </main>
 
+      <!-- Oracle AI Docked / Floating / Sheet Side Panel -->
+      <aside class="oracle-side-panel" id="oracle-side-panel" role="complementary" aria-label="Frontier Oracle Assistant">
+        <!-- Resize handle (Desktop) -->
+        <div class="oracle-resize-handle" id="oracle-resize-handle" title="Drag to resize"></div>
+
+        <!-- Panel Header -->
+        <header class="oracle-panel-header">
+          <div class="oracle-panel-brand">
+            <span class="oracle-panel-sparkle">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+              </svg>
+            </span>
+            <h3 class="oracle-panel-title">Frontier Oracle</h3>
+          </div>
+          <div class="oracle-panel-header-actions">
+            <button type="button" class="oracle-header-btn" id="btn-oracle-panel-menu" aria-label="More options" aria-haspopup="true" aria-expanded="false" title="More options">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="5" r="1.5"></circle>
+                <circle cx="12" cy="12" r="1.5"></circle>
+                <circle cx="12" cy="19" r="1.5"></circle>
+              </svg>
+            </button>
+            <button type="button" class="oracle-header-btn" id="btn-oracle-panel-close" aria-label="Close Oracle panel" title="Close (Esc)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Three-Dot Menu Popover -->
+          <div class="oracle-menu-popover hidden" id="oracle-menu-popover" role="menu" aria-label="Oracle menu">
+            <button type="button" class="oracle-menu-item" id="menu-oracle-new" role="menuitem" tabindex="-1">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>New chat</span>
+            </button>
+            <button type="button" class="oracle-menu-item" id="menu-oracle-history" role="menuitem" tabindex="-1">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+              <span>History</span>
+            </button>
+            <button type="button" class="oracle-menu-item" id="menu-oracle-fullpage" role="menuitem" tabindex="-1">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <polyline points="9 21 3 21 3 15"></polyline>
+                <line x1="21" y1="3" x2="14" y2="10"></line>
+                <line x1="3" y1="21" x2="10" y2="14"></line>
+              </svg>
+              <span>Open full page</span>
+            </button>
+            <button type="button" class="oracle-menu-item" id="menu-oracle-width-toggle" role="menuitem" tabindex="-1">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="4 14 10 14 10 20"></polyline>
+                <polyline points="20 10 14 10 14 4"></polyline>
+                <line x1="14" y1="10" x2="21" y2="3"></line>
+                <line x1="3" y1="21" x2="10" y2="14"></line>
+              </svg>
+              <span id="label-oracle-width">Wide width</span>
+            </button>
+            <div class="oracle-menu-divider" role="separator"></div>
+            <button type="button" class="oracle-menu-item oracle-menu-item-danger" id="menu-oracle-clear-all" role="menuitem" tabindex="-1">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              <span>Clear all chats</span>
+            </button>
+            <button type="button" class="oracle-menu-item" id="menu-oracle-shortcuts" role="menuitem" tabindex="-1">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+                <line x1="6" y1="8" x2="6.01" y2="8"></line>
+                <line x1="10" y1="8" x2="10.01" y2="8"></line>
+                <line x1="14" y1="8" x2="14.01" y2="8"></line>
+                <line x1="18" y1="8" x2="18.01" y2="8"></line>
+                <line x1="6" y1="12" x2="6.01" y2="12"></line>
+                <line x1="18" y1="12" x2="18.01" y2="12"></line>
+                <line x1="8" y1="16" x2="16" y2="16"></line>
+              </svg>
+              <span>Keyboard shortcuts</span>
+            </button>
+          </div>
+        </header>
+
+        <!-- Main Body: Active Chat View -->
+        <div class="oracle-panel-body" id="oracle-panel-chat-view">
+          <div class="oracle-panel-messages" id="oracle-panel-messages">
+            <!-- Messages or Empty State populated dynamically -->
+          </div>
+
+          <!-- Bottom Prompt Input Footer -->
+          <footer class="oracle-panel-footer">
+            <!-- Display-Only Context Pill -->
+            <div class="oracle-context-pill" id="oracle-context-pill">
+              <span class="oracle-context-dot"></span>
+              <span id="oracle-context-text">Viewing: Tasks</span>
+            </div>
+
+            <form class="oracle-input-box" id="oracle-panel-form">
+              <textarea class="oracle-textarea" id="oracle-panel-input" rows="1" placeholder="Ask Oracle anything..." autocomplete="off"></textarea>
+              <button type="submit" class="oracle-send-btn" id="btn-oracle-panel-send" disabled title="Send message (Enter)" aria-label="Send message">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </button>
+            </form>
+          </footer>
+        </div>
+
+        <!-- Secondary Body: History View inside Panel -->
+        <div class="oracle-history-view" id="oracle-panel-history-view">
+          <div class="oracle-history-header">
+            <span>Conversations</span>
+            <button type="button" class="oracle-history-back-btn" id="btn-oracle-history-back">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+              <span>Back to chat</span>
+            </button>
+          </div>
+          <div class="oracle-history-list" id="oracle-panel-history-list">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+      </aside>
+
+    </div>
+  </div>
+
+  <!-- Clear All Confirmation Modal -->
+  <div class="oracle-modal-overlay hidden" id="modal-oracle-clear-confirm" role="dialog" aria-modal="true" aria-labelledby="oracle-clear-modal-title">
+    <div class="oracle-modal-box">
+      <div class="oracle-modal-header">
+        <h4 class="oracle-modal-title" id="oracle-clear-modal-title">Clear all chats?</h4>
+        <button type="button" class="btn-icon" id="btn-close-clear-modal" aria-label="Close dialog">&times;</button>
+      </div>
+      <p class="oracle-modal-desc">This will permanently delete all your conversation history with Frontier Oracle. This action cannot be undone.</p>
+      <div class="oracle-modal-actions">
+        <button type="button" class="btn btn-outlined btn-sm" id="btn-cancel-clear-all">Cancel</button>
+        <button type="button" class="btn btn-filled btn-sm" id="btn-confirm-clear-all" style="background: #ea4335; border-color: #ea4335; color: #ffffff;">Clear all</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Keyboard Shortcuts Modal -->
+  <div class="oracle-modal-overlay hidden" id="modal-oracle-shortcuts" role="dialog" aria-modal="true" aria-labelledby="oracle-shortcuts-modal-title">
+    <div class="oracle-modal-box">
+      <div class="oracle-modal-header">
+        <h4 class="oracle-modal-title" id="oracle-shortcuts-modal-title">Keyboard shortcuts</h4>
+        <button type="button" class="btn-icon" id="btn-close-shortcuts-modal" aria-label="Close dialog">&times;</button>
+      </div>
+      <div style="margin-bottom: 16px;">
+        <div class="oracle-shortcut-row">
+          <span>Open / Close Oracle</span>
+          <kbd>Ctrl + /</kbd>
+        </div>
+        <div class="oracle-shortcut-row">
+          <span>Close menu / modal / panel</span>
+          <kbd>Esc</kbd>
+        </div>
+        <div class="oracle-shortcut-row">
+          <span>Send message</span>
+          <kbd>Enter</kbd>
+        </div>
+        <div class="oracle-shortcut-row">
+          <span>New line</span>
+          <kbd>Shift + Enter</kbd>
+        </div>
+        <div class="oracle-shortcut-row">
+          <span>Quick Command Palette</span>
+          <kbd>Ctrl + K</kbd>
+        </div>
+      </div>
+      <div class="oracle-modal-actions">
+        <button type="button" class="btn btn-outlined btn-sm" id="btn-dismiss-shortcuts">Close</button>
+      </div>
     </div>
   </div>
 
@@ -1295,5 +1496,7 @@
   </div>
 
   <script type="module" src="app.js"></script>
+  <script type="module" src="oracle-panel.js"></script>
+  <script type="module" src="mobile-nav.js"></script>
 </body>
 </html>
