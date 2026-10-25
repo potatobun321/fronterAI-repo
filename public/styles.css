@@ -132,6 +132,8 @@ body {
 .header-center {
   flex: 1;
   max-width: 680px;
+  min-width: 0;
+  margin: 0 16px;
 }
 
 .search-box {
@@ -143,6 +145,7 @@ body {
   padding: 6px 16px;
   gap: 10px;
   transition: all 0.2s ease;
+  min-width: 0;
 }
 
 .search-box:focus-within {
@@ -158,11 +161,14 @@ body {
   font-family: var(--font-sans);
   font-size: 14px;
   width: 100%;
+  min-width: 0;
   outline: none;
+  text-overflow: ellipsis;
 }
 
 .search-icon {
   color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .search-kbd {
@@ -173,12 +179,16 @@ body {
   padding: 2px 6px;
   border-radius: 4px;
   border: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .header-right {
   display: flex;
   align-items: center;
   position: relative;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 /* Account Chip (Google Workspace Profile Switcher) */
@@ -193,6 +203,8 @@ body {
   cursor: pointer;
   transition: background-color 0.15s ease;
   user-select: none;
+  max-width: 260px;
+  min-width: 0;
 }
 
 .account-chip:hover {
@@ -211,11 +223,20 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .user-details {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+}
+
+.user-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
 .user-name {
@@ -223,15 +244,24 @@ body {
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 115px;
 }
 
 .user-role-badge {
   font-size: 11px;
   color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
 }
 
 .chip-dropdown-arrow {
   color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 /* Persona Switcher Floating Menu */
@@ -739,6 +769,15 @@ body {
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
   user-select: none;
   box-sizing: border-box;
+  max-width: 100%;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.segmented-control::-webkit-scrollbar {
+  display: none;
 }
 
 #task-view-mode-tabs,
@@ -1939,7 +1978,7 @@ button:active:not(:disabled),
 
 .team-roster-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
   gap: 16px;
 }
 
@@ -1954,6 +1993,7 @@ button:active:not(:disabled),
   gap: 14px;
   transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  min-width: 0;
 }
 
 .roster-card:hover {
@@ -1967,6 +2007,7 @@ button:active:not(:disabled),
   display: flex;
   align-items: center;
   gap: 14px;
+  min-width: 0;
 }
 
 .roster-avatar {
@@ -1998,6 +2039,11 @@ button:active:not(:disabled),
   border: 1px solid rgba(253, 214, 99, 0.25);
 }
 
+.roster-title-group {
+  min-width: 0;
+  flex: 1;
+}
+
 .roster-title-group h4 {
   font-size: 14.5px;
   font-weight: 600;
@@ -2006,12 +2052,17 @@ button:active:not(:disabled),
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .roster-role-title {
   font-size: 12px;
   color: var(--text-muted);
   font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
 }
 
 .roster-meta-stack {
@@ -2023,17 +2074,22 @@ button:active:not(:disabled),
   flex-direction: column;
   gap: 8px;
   font-size: 12px;
+  min-width: 0;
 }
 
 .meta-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .meta-label {
   color: var(--text-muted);
   font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .meta-val {
@@ -2042,6 +2098,12 @@ button:active:not(:disabled),
   font-size: 12.5px;
   color: var(--text-primary);
   letter-spacing: -0.1px;
+  min-width: 0;
+  max-width: 65%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
 }
 
 /* ==========================================================================
@@ -3169,6 +3231,47 @@ button:active:not(:disabled),
 }
 
 /* --- Responsive breakpoints --- */
+
+/* Intermediate Breakpoint (769px - 1120px: Snapped desktop windows & tablets) */
+@media (min-width: 769px) and (max-width: 1120px) {
+  .voting-workspace-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .dashboard-split-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .kanban-board {
+    display: flex;
+    overflow-x: auto;
+    gap: 16px;
+    padding-bottom: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .kanban-column {
+    flex: 0 0 290px;
+    min-width: 280px;
+  }
+
+  .header-center {
+    max-width: 320px;
+    margin: 0 8px;
+  }
+
+  .search-box {
+    width: 100%;
+  }
+
+  .team-roster-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+}
+
+/* Mobile Breakpoint (<=768px) */
 @media (max-width: 768px) {
   .stepper-track {
     flex-direction: column;
@@ -3193,6 +3296,8 @@ button:active:not(:disabled),
 
   .kanban-column {
     min-height: 180px;
+    width: 100%;
+    min-width: 0;
   }
 
   .dashboard-split-grid {
