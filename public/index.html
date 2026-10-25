@@ -158,35 +158,12 @@
           </button>
           <button class="nav-item" id="nav-item-peers-settings" data-view="view-peers">
             <span id="nav-icon-peers-settings" style="display: inline-flex;"><svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
-            <span class="nav-label" id="nav-label-peers-settings">Peers</span>
+            <span class="nav-label" id="nav-label-peers-settings">Team &amp; Peers</span>
             <span class="nav-badge" id="badge-tasklets-count" style="display: none;">0</span>
-            <span class="nav-dropdown-toggle" id="btn-toggle-settings-subitems" role="button" tabindex="0" title="Toggle settings menu" aria-label="Toggle settings menu" aria-expanded="false" style="display: none;">
-              <svg class="nav-dropdown-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
-            </span>
           </button>
-          <div class="nav-subitems-container collapsed" id="nav-settings-subitems" style="display: none;">
-            <button type="button" class="nav-subitem" data-settings-tab="directory" id="nav-subitem-directory">
-              <svg class="nav-subitem-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-              <span class="nav-subitem-label">Directory</span>
-            </button>
-            <button type="button" class="nav-subitem" data-settings-tab="permissions" id="nav-subitem-permissions">
-              <svg class="nav-subitem-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-              <span class="nav-subitem-label">Permissions</span>
-            </button>
-            <button type="button" class="nav-subitem" data-settings-tab="history" id="nav-subitem-history">
-              <svg class="nav-subitem-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-              <span class="nav-subitem-label">Activity history</span>
-            </button>
-            <button type="button" class="nav-subitem" data-settings-tab="snapshot" id="nav-subitem-snapshot">
-              <svg class="nav-subitem-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
-              <span class="nav-subitem-label">Database snapshots</span>
-            </button>
-          </div>
-          <button class="nav-item" id="nav-item-direct-settings" data-view="view-settings">
+          <button class="nav-item" id="nav-item-direct-settings" data-view="view-settings" style="display: none;">
             <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-            <span class="nav-label">Settings & Logs</span>
+            <span class="nav-label">Settings &amp; Logs</span>
           </button>
         </div>
 
@@ -581,12 +558,11 @@
         <section id="view-peers" class="workspace-view">
           <div class="view-header">
             <div>
-              <h2 class="view-title">Peers, Tasks &amp; Feedback</h2>
-              <p class="view-subtitle">Coordinate micro-tasks, exchange constructive peer feedback, and browse the team directory</p>
+              <h2 class="view-title">Team &amp; Peers</h2>
+              <p class="view-subtitle">Coordinate micro-tasks, exchange peer recognition, and browse the team directory</p>
             </div>
             <div class="header-action-group">
-              <button class="btn btn-outlined" id="btn-open-send-feedback">+ Share Feedback</button>
-              <button class="btn btn-filled" id="btn-open-send-tasklet">+ Send Micro-Task</button>
+              <button class="btn btn-filled host-only-action" id="btn-open-onboard-peers" style="display: none;">+ Onboard Member</button>
             </div>
           </div>
 
@@ -1331,79 +1307,134 @@
   </dialog>
 
   <!-- MODAL: SEND TASKLET (MEMBER TO MEMBER) -->
-  <dialog id="modal-send-tasklet" class="workspace-dialog">
-    <div class="dialog-content">
+  <dialog id="modal-send-tasklet" class="workspace-dialog modern-tasklet-dialog">
+    <div class="dialog-content modern-dialog-surface">
       <div class="dialog-header">
         <div>
-          <h3>Send Tasklet to a Peer</h3>
-          <p>Request an informal review, sync, or micro-task from a teammate.</p>
+          <h3 class="modal-headline">Send Micro-Tasklet</h3>
+          <p class="modal-subhead">Request an informal review, sync, or micro-deliverable from a teammate.</p>
         </div>
-        <button class="btn-icon btn-close-modal" id="btn-close-send-tasklet-modal">&times;</button>
+        <button type="button" class="btn-icon btn-close-modal" id="btn-close-send-tasklet-modal" aria-label="Close dialog">&times;</button>
       </div>
+
       <form id="form-send-tasklet" class="dialog-form">
-        <div class="form-group">
-          <label for="tasklet-receiver">Recipient Peer</label>
-          <select id="tasklet-receiver" required class="form-select">
+        <!-- Professional Recipient Card Banner -->
+        <div class="tasklet-recipient-banner" id="tasklet-recipient-card">
+          <div class="tasklet-recipient-avatar" id="tasklet-recipient-avatar">DS</div>
+          <div class="tasklet-recipient-meta">
+            <div class="tasklet-recipient-name" id="tasklet-recipient-name">Dheeraj Singhal</div>
+            <div class="tasklet-recipient-role" id="tasklet-recipient-role">Software Engineer &middot; Backend Track</div>
+          </div>
+          <button type="button" class="btn-change-recipient" id="btn-toggle-tasklet-receiver-select" title="Change recipient">Change</button>
+        </div>
+
+        <div class="form-group hidden" id="wrap-tasklet-receiver-select">
+          <label for="tasklet-receiver" class="form-label-google">Select Teammate</label>
+          <select id="tasklet-receiver" class="form-select-google">
             <!-- Populated with team members -->
           </select>
         </div>
-        <div class="form-group">
-          <label for="tasklet-title">Tasklet Title</label>
-          <input type="text" id="tasklet-title" required placeholder="e.g., Review PR #18 or Check SQLite WAL mode" class="form-input">
+
+        <!-- Professional Quick Preset Chips (No Emojis) -->
+        <div class="form-group" style="margin-bottom: 8px;">
+          <label class="form-label-google">Quick Presets</label>
+          <div class="tasklet-presets-row" id="tasklet-preset-chips">
+            <button type="button" class="tasklet-preset-chip" data-prefix="PR Review: ">PR Review</button>
+            <button type="button" class="tasklet-preset-chip" data-prefix="Sync Request: ">Sync Request</button>
+            <button type="button" class="tasklet-preset-chip" data-prefix="Sanity Check: ">Sanity Check</button>
+            <button type="button" class="tasklet-preset-chip" data-prefix="Spec Clarification: ">Clarification</button>
+          </div>
         </div>
+
         <div class="form-group">
-          <label for="tasklet-desc">Notes / Details</label>
-          <textarea id="tasklet-desc" rows="3" placeholder="Add helpful links, context, or deadline..." class="form-textarea"></textarea>
+          <label for="tasklet-title" class="form-label-google">Tasklet Title</label>
+          <input type="text" id="tasklet-title" required placeholder="e.g., Review PR #18 or check SQLite WAL mode" class="form-input-google" autocomplete="off">
         </div>
-        <div class="dialog-actions">
-          <button type="button" class="btn btn-outlined" id="btn-cancel-send-tasklet">Cancel</button>
-          <button type="submit" class="btn btn-filled">Send Tasklet</button>
+
+        <div class="form-group">
+          <label for="tasklet-desc" class="form-label-google">Notes &amp; Context <span class="label-optional">(Optional)</span></label>
+          <textarea id="tasklet-desc" rows="3" placeholder="Add helpful links, branch details, or context..." class="form-textarea-google"></textarea>
+        </div>
+
+        <div class="dialog-actions-footer">
+          <div class="shortcut-tip-hint">
+            <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to send
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <button type="button" class="btn btn-outlined" id="btn-cancel-send-tasklet">Cancel</button>
+            <button type="submit" class="btn btn-filled" id="btn-submit-tasklet">Send Tasklet</button>
+          </div>
         </div>
       </form>
     </div>
   </dialog>
 
-  <!-- MODAL: SEND PEER FEEDBACK (COMMENDATION / SUGGESTION) -->
-  <dialog id="modal-send-feedback" class="workspace-dialog">
-    <div class="dialog-box" style="max-width: 540px;">
+  <!-- MODAL: SEND PEER FEEDBACK -->
+  <dialog id="modal-send-feedback" class="workspace-dialog modern-tasklet-dialog">
+    <div class="dialog-content modern-dialog-surface">
       <div class="dialog-header">
         <div>
-          <h3>Share Peer Feedback</h3>
-          <p>Send constructive peer recognition, code review feedback, or collaboration notes.</p>
+          <h3 class="modal-headline">Share Peer Feedback</h3>
+          <p class="modal-subhead">Send constructive recognition, code review praise, or collaboration notes.</p>
         </div>
-        <button class="btn-icon btn-close-modal" id="btn-close-send-feedback-modal">&times;</button>
+        <button type="button" class="btn-icon btn-close-modal" id="btn-close-send-feedback-modal" aria-label="Close dialog">&times;</button>
       </div>
+
       <form id="form-send-feedback" class="dialog-form">
-        <div class="form-field">
-          <label for="feedback-receiver">Recipient Peer</label>
-          <select id="feedback-receiver" required class="input-select"></select>
+        <!-- Professional Recipient Card Banner -->
+        <div class="tasklet-recipient-banner" id="feedback-recipient-card">
+          <div class="tasklet-recipient-avatar" id="feedback-recipient-avatar">DS</div>
+          <div class="tasklet-recipient-meta">
+            <div class="tasklet-recipient-name" id="feedback-recipient-name">Dheeraj Singhal</div>
+            <div class="tasklet-recipient-role" id="feedback-recipient-role">Software Engineer &middot; Backend Track</div>
+          </div>
+          <button type="button" class="btn-change-recipient" id="btn-toggle-feedback-receiver-select" title="Change recipient">Change</button>
         </div>
-        <div class="form-field">
-          <label for="feedback-category">Feedback Category</label>
-          <select id="feedback-category" class="input-select">
-            <option value="KUDOS">Kudos &amp; Commendation</option>
-            <option value="COLLABORATION">Team Collaboration &amp; Support</option>
-            <option value="CODE_QUALITY">Code Quality &amp; Technical Impact</option>
-            <option value="SUGGESTION">Constructive Suggestion</option>
-          </select>
+
+        <div class="form-group hidden" id="wrap-feedback-receiver-select">
+          <label for="feedback-receiver" class="form-label-google">Select Teammate</label>
+          <select id="feedback-receiver" class="form-select-google"></select>
         </div>
-        <div class="form-field">
-          <label for="feedback-title">Feedback Subject</label>
-          <input type="text" id="feedback-title" required placeholder="e.g. Great architectural breakdown on the edge router" class="input-text">
+
+        <div class="form-group">
+          <label class="form-label-google">Feedback Category</label>
+          <div class="feedback-category-pills" id="feedback-category-group">
+            <button type="button" class="feedback-cat-pill active" data-cat="KUDOS">Kudos</button>
+            <button type="button" class="feedback-cat-pill" data-cat="COLLABORATION">Collaboration</button>
+            <button type="button" class="feedback-cat-pill" data-cat="CODE_QUALITY">Code Quality</button>
+            <button type="button" class="feedback-cat-pill" data-cat="SUGGESTION">Suggestion</button>
+          </div>
+          <input type="hidden" id="feedback-category" value="KUDOS">
         </div>
-        <div class="form-field">
-          <label for="feedback-desc">Detailed Feedback Notes</label>
-          <textarea id="feedback-desc" rows="3" placeholder="Share specific examples and recognition..." class="input-textarea" required></textarea>
+
+        <div class="form-group">
+          <label for="feedback-title" class="form-label-google">Subject</label>
+          <input type="text" id="feedback-title" required placeholder="e.g., Clean architecture on the edge router" class="form-input-google" autocomplete="off">
         </div>
-        <div class="form-field" style="margin-top: 4px;">
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: var(--text-primary);">
-            <input type="checkbox" id="feedback-is-anonymous" style="width: 16px; height: 16px; accent-color: var(--google-blue);">
-            <span><strong>Send Anonymously</strong> (Your identity is masked as "Anonymous Teammate" for the receiver)</span>
+
+        <div class="form-group">
+          <label for="feedback-desc" class="form-label-google">Detailed Recognition</label>
+          <textarea id="feedback-desc" rows="3" placeholder="Share specific examples, impact, and observations..." class="form-textarea-google" required></textarea>
+        </div>
+
+        <div class="form-group" style="margin-top: 6px;">
+          <label class="feedback-anonymous-toggle">
+            <input type="checkbox" id="feedback-is-anonymous">
+            <span class="anon-toggle-text">
+              <strong>Send Anonymously</strong>
+              <span class="anon-toggle-sub">Your identity is masked as "Anonymous Teammate" for the receiver</span>
+            </span>
           </label>
         </div>
-        <div class="dialog-actions">
-          <button type="button" class="btn btn-outlined" id="btn-cancel-send-feedback">Cancel</button>
-          <button type="submit" class="btn btn-filled">Share Feedback</button>
+
+        <div class="dialog-actions-footer">
+          <div class="shortcut-tip-hint">
+            <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to send
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <button type="button" class="btn btn-outlined" id="btn-cancel-send-feedback">Cancel</button>
+            <button type="submit" class="btn btn-filled">Share Feedback</button>
+          </div>
         </div>
       </form>
     </div>
