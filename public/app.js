@@ -1028,8 +1028,23 @@ function setupPersonaDropdown() {
     if (isHidden) {
       if (source === 'sidebar' && window.innerWidth > 768) {
         menu.classList.add('desktop-sidebar-menu');
+        if (triggerSidebar) {
+          const rect = triggerSidebar.getBoundingClientRect();
+          menu.style.position = 'fixed';
+          menu.style.bottom = `${Math.max(window.innerHeight - rect.top + 10, 84)}px`;
+          menu.style.left = `${rect.left}px`;
+          menu.style.width = `${Math.max(rect.width, 310)}px`;
+          menu.style.top = 'auto';
+          menu.style.right = 'auto';
+        }
       } else {
         menu.classList.remove('desktop-sidebar-menu');
+        menu.style.position = '';
+        menu.style.bottom = '';
+        menu.style.left = '';
+        menu.style.width = '';
+        menu.style.top = '';
+        menu.style.right = '';
       }
       menu.classList.remove('hidden');
     } else {
