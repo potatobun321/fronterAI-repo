@@ -1031,9 +1031,11 @@ function setupPersonaDropdown() {
         if (triggerSidebar) {
           const rect = triggerSidebar.getBoundingClientRect();
           menu.style.position = 'fixed';
-          menu.style.bottom = `${Math.max(window.innerHeight - rect.top + 10, 84)}px`;
-          menu.style.left = `${rect.left}px`;
-          menu.style.width = `${Math.max(rect.width, 310)}px`;
+          // Ensure menu bottom is placed safely 12px above the top edge of the sidebar user card
+          const clearanceFromBottom = Math.max(Math.round(window.innerHeight - rect.top + 12), 96);
+          menu.style.bottom = `${clearanceFromBottom}px`;
+          menu.style.left = `${Math.max(Math.round(rect.left), 14)}px`;
+          menu.style.width = `${Math.max(Math.round(rect.width), 310)}px`;
           menu.style.top = 'auto';
           menu.style.right = 'auto';
         }

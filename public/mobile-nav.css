@@ -24,50 +24,38 @@
     pointer-events: none !important;
   }
 
-  /* Make Oracle AI button in topbar a sleek, prominent pill on desktop */
+  /* Clean circular Oracle AI button on desktop (matches logo-only aesthetic) */
   #btn-oracle-topbar,
   .oracle-topbar-btn {
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    max-width: 36px !important;
+    border-radius: 50% !important;
+    padding: 0 !important;
     display: inline-flex !important;
     align-items: center !important;
-    gap: 8px !important;
-    height: 36px !important;
-    width: auto !important;
-    min-width: fit-content !important;
-    white-space: nowrap !important;
-    padding: 0 14px 0 12px !important;
-    border-radius: 18px !important;
+    justify-content: center !important;
     background-color: var(--bg-surface-elevated, #28292a) !important;
     border: 1px solid var(--border-default, rgba(255, 255, 255, 0.16)) !important;
-    color: var(--text-primary, #e3e3e3) !important;
-    font-family: var(--font-sans, system-ui, sans-serif) !important;
-    font-size: 13px !important;
-    font-weight: 600 !important;
+    color: var(--google-blue, #8ab4f8) !important;
     cursor: pointer !important;
     transition: all 0.18s cubic-bezier(0.2, 0, 0, 1) !important;
+    flex-shrink: 0 !important;
   }
 
   .oracle-topbar-btn svg {
     color: var(--google-blue, #8ab4f8) !important;
-    width: 17px !important;
-    height: 17px !important;
+    width: 18px !important;
+    height: 18px !important;
   }
 
   .oracle-topbar-btn:hover {
     background-color: var(--bg-surface-hover, #353739) !important;
     border-color: var(--google-blue, #8ab4f8) !important;
-    color: var(--google-blue-text, #a8c7fa) !important;
+    color: #ffffff !important;
+    transform: scale(1.05);
     box-shadow: 0 2px 10px rgba(66, 133, 244, 0.22) !important;
-  }
-
-  .oracle-topbar-btn .oracle-btn-kbd {
-    font-size: 10px !important;
-    font-family: var(--font-mono, monospace) !important;
-    color: var(--text-muted, #9aa0a6) !important;
-    background-color: rgba(255, 255, 255, 0.08) !important;
-    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12)) !important;
-    padding: 1px 5px !important;
-    border-radius: 4px !important;
-    margin-left: 2px !important;
   }
 }
 
