@@ -64,6 +64,17 @@ const state = {
 window.appState = state;
 window.showToast = showToast;
 
+export function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+window.escapeHtml = escapeHtml;
+
 export function showToast(message, isError = false) {
   const toast = document.getElementById('toast');
   const toastMsg = document.getElementById('toast-message');
