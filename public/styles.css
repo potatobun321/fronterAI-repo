@@ -3454,6 +3454,57 @@ button:active:not(:disabled),
   .header-center {
     display: none;
   }
+
+  /* Compact checklist task row on mobile: stack elements cleanly so URLs and badges never cramp */
+  .compact-task-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    padding: 12px 14px !important;
+  }
+
+  .compact-task-row > div:first-child {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .compact-task-title {
+    font-size: 13.5px !important;
+    line-height: 1.35 !important;
+  }
+
+  .compact-task-assignee {
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    margin-top: 5px !important;
+    font-size: 11.5px !important;
+  }
+
+  .deliverable-link {
+    display: inline-block !important;
+    max-width: 100% !important;
+    word-break: break-all !important;
+    overflow-wrap: anywhere !important;
+    font-size: 11.5px !important;
+    line-height: 1.4 !important;
+    padding: 4px 8px !important;
+    border-radius: 6px !important;
+    background-color: rgba(66, 133, 244, 0.1) !important;
+    margin-top: 4px !important;
+  }
+
+  .compact-task-row > div:last-child {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
+    width: 100% !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+    padding-top: 8px !important;
+    margin-top: 2px !important;
+  }
 }
 
 /* --- KPI card left-border accent --- */

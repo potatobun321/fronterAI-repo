@@ -46,6 +46,29 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.oracle-btn-label {
+  white-space: nowrap !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  color: inherit !important;
+  display: inline-block !important;
+}
+
+.oracle-btn-kbd {
+  font-size: 10px !important;
+  font-family: var(--font-mono, monospace) !important;
+  color: var(--text-muted, #9aa0a6) !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.14)) !important;
+  padding: 1px 5px !important;
+  border-radius: 4px !important;
+  margin-left: 2px !important;
+  white-space: nowrap !important;
+  line-height: 1.2 !important;
+  display: inline-block !important;
+}
+
 .oracle-topbar-btn:hover {
   background: rgba(168, 199, 250, 0.28);
   border-color: rgba(168, 199, 250, 0.6);
