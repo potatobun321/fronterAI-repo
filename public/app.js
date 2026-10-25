@@ -2807,11 +2807,11 @@ function renderTeamRoster() {
       <div class="roster-meta-stack">
         <div class="meta-row">
           <span class="meta-label">Track</span>
-          <span class="meta-val" style="text-transform: capitalize;">${m.team_track}</span>
+          <span class="meta-val" style="text-transform: capitalize;">${escapeHtml(m.team_track || 'Member')}</span>
         </div>
         <div class="meta-row">
           <span class="meta-label">Team Handle</span>
-          <span class="meta-val">${m.email || `@${m.handle}`}</span>
+          <span class="meta-val" title="${escapeHtml(m.email || '@' + m.handle)}">${escapeHtml(m.email || '@' + m.handle)}</span>
         </div>
         <div class="meta-row">
           <span class="meta-label">Allocated Tasks</span>

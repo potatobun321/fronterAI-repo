@@ -1,20 +1,20 @@
 /**
  * Frontier AI Workspace — Mobile Navigation Styles (mobile-nav.css)
+ * Material 3 / Google Workspace Theme
+ * 
  * Screen widths <= 768px:
- * - Hides desktop sidebar & old hamburger button
- * - Expands content canvas full-width with safe-area bottom padding (88px)
- * - 48px floating action button (FAB) in bottom-right corner with 180deg rotating chevron
- * - Vertical animated stack of all navigation items (>=44px touch targets)
- * - Accordion expansion for Settings & Logs 4 sub-pages
- * - Top-bar simplification (avatar + role badge only)
- * - 1-column responsive stacking for stat cards & page header buttons
- * Desktop (>768px) remains 100% untouched.
+ * - Fixed Bottom Navigation Bar (Tasks, Meet, Review, Team, Admin)
+ * - Streamlined Top Bar (Brand logo + 36px circular AI chat target + 36px circular user avatar)
+ * - Full-width canvas with safe-area bottom padding
+ * - Text de-cramping for meta stacks, email handles, segmented controls, and dialogs
+ * - Desktop (>768px) remains clean with zero mobile bottom nav footprint
  */
 
 /* ==========================================================================
-   1. DESKTOP GUARD (>768px) — HIDE ALL MOBILE NAV OVERLAYS
+   1. DESKTOP GUARD (>768px) — HIDE MOBILE BOTTOM NAV & LEGACY OVERLAYS
    ========================================================================== */
 @media (min-width: 769px) {
+  .mobile-bottom-nav,
   .mobile-nav-fab,
   .mobile-nav-stack,
   .mobile-nav-backdrop {
@@ -29,7 +29,7 @@
    ========================================================================== */
 @media (max-width: 768px) {
 
-  /* --- Requirement 1: Hide sidebar and hamburger, expand content --- */
+  /* --- Hide desktop sidebar & hamburger button --- */
   #sidebar,
   .workspace-sidebar,
   #btn-toggle-sidebar {
@@ -46,8 +46,8 @@
     width: 100% !important;
     max-width: 100% !important;
     margin-left: 0 !important;
-    /* Add ~88px bottom padding to guarantee floating button never covers content */
-    padding: 16px 16px calc(88px + env(safe-area-inset-bottom, 0px)) 16px !important;
+    /* Safe-area bottom padding ensures content is never covered by bottom nav */
+    padding: 16px 14px calc(76px + env(safe-area-inset-bottom, 0px)) 14px !important;
     overflow-x: hidden !important;
     box-sizing: border-box !important;
   }
@@ -59,10 +59,12 @@
     box-sizing: border-box !important;
   }
 
-  /* --- Requirement 8: Top Bar Simplification --- */
+  /* --- Top App Bar Streamlining: Brand + [AI Circle] + [User Circle] --- */
   .workspace-header {
+    height: 54px !important;
     padding: 0 12px !important;
     gap: 8px !important;
+    justify-content: space-between !important;
   }
 
   .header-left {
@@ -80,7 +82,8 @@
   }
 
   .workspace-org-name {
-    font-size: 14px !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
     white-space: nowrap !important;
   }
 
@@ -90,53 +93,64 @@
 
   .header-right {
     margin-left: auto !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
   }
 
-  /* In user chip: hide user name text, show only avatar and role badge */
+  /* AI Sparkle Circular Button on Mobile */
+  #btn-oracle-topbar,
+  .oracle-topbar-btn {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 50% !important;
+    background-color: var(--bg-surface-elevated, #28292a) !important;
+    border: 1px solid var(--border-default, rgba(255, 255, 255, 0.16)) !important;
+    color: var(--google-blue, #8ab4f8) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    flex-shrink: 0 !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+  }
+
+  #btn-oracle-topbar:hover,
+  #btn-oracle-topbar:active {
+    background-color: var(--bg-surface-hover, #353739) !important;
+  }
+
+  /* Account Chip: Circular Avatar Button Only (Hides labels, roles, and arrow) */
   .account-chip {
-    padding: 3px 8px 3px 4px !important;
-    gap: 6px !important;
+    width: 36px !important;
+    height: 36px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
     min-width: 0 !important;
   }
 
-  .account-chip .user-name {
-    display: none !important;
-  }
-
-  .account-chip .chip-dropdown-arrow {
+  .account-chip .user-details,
+  .account-chip .chip-dropdown-arrow,
+  .account-chip .user-name,
+  .account-chip .user-role-badge,
+  .account-chip .host-pill-tag {
     display: none !important;
   }
 
   .account-chip .user-avatar {
-    width: 28px !important;
-    height: 28px !important;
-    font-size: 11px !important;
+    width: 34px !important;
+    height: 34px !important;
+    font-size: 12.5px !important;
+    font-weight: 700 !important;
     flex-shrink: 0 !important;
-  }
-
-  .account-chip .user-details {
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    gap: 5px !important;
-  }
-
-  .account-chip .user-name-row {
-    display: inline-flex !important;
-    align-items: center !important;
-  }
-
-  .account-chip .user-role-badge {
-    display: inline-block !important;
-    font-size: 10.5px !important;
-    color: var(--text-muted, #9aa0a6) !important;
-    white-space: nowrap !important;
-  }
-
-  .account-chip .host-pill-tag {
-    font-size: 9.5px !important;
-    padding: 2px 6px !important;
-    line-height: 1.2 !important;
+    box-shadow: 0 0 0 1.5px var(--border-default, rgba(255, 255, 255, 0.18)) !important;
   }
 
   /* Persona dropdown on mobile */
@@ -150,7 +164,7 @@
     z-index: 1100 !important;
   }
 
-  /* --- Requirement 8: Stat Cards & Page Header Buttons Stack to 1 Column --- */
+  /* --- Page Headers & Action Buttons --- */
   .view-header {
     display: flex !important;
     flex-direction: column !important;
@@ -181,12 +195,14 @@
     margin: 0 !important;
   }
 
-  /* Stat cards (KPI grid) stack to 1 column */
-  .kpi-grid {
-    display: grid !important;
+  /* --- Multi-column grids stacked cleanly for mobile --- */
+  .kpi-grid,
+  .dashboard-split-grid,
+  .voting-workspace-grid,
+  .team-roster-grid,
+  .kanban-board,
+  .form-row {
     grid-template-columns: 1fr !important;
-    gap: 12px !important;
-    margin-bottom: 18px !important;
     width: 100% !important;
   }
 
@@ -196,14 +212,30 @@
     box-sizing: border-box !important;
   }
 
-  /* Other multi-column grids stacked cleanly for mobile */
-  .dashboard-split-grid,
-  .voting-workspace-grid,
-  .team-roster-grid,
-  .kanban-board,
-  .form-row {
-    grid-template-columns: 1fr !important;
-    width: 100% !important;
+  /* --- Text De-Cramping for Cards, Labels & Lists --- */
+  .meta-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 8px !important;
+    min-width: 0 !important;
+  }
+
+  .meta-label {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    font-size: 12px !important;
+    color: var(--text-muted, #9aa0a6) !important;
+  }
+
+  .meta-val {
+    min-width: 0 !important;
+    max-width: 65% !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    text-align: right !important;
+    font-size: 12px !important;
   }
 
   /* Segmented tabs scroll horizontally if needed without wrapping */
@@ -218,349 +250,180 @@
   .segmented-control::-webkit-scrollbar {
     display: none;
   }
+
+  .segmented-tab {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Dialogs fit comfortably within mobile viewport */
+  .workspace-dialog {
+    width: calc(100vw - 20px) !important;
+    max-width: calc(100vw - 20px) !important;
+    margin: auto 10px !important;
+  }
+
+  .dialog-box {
+    padding: 18px 14px !important;
+    max-height: 85vh !important;
+  }
+
+  /* Hide legacy FAB & floating stack if present */
+  .mobile-nav-fab,
+  .mobile-nav-stack,
+  .mobile-nav-backdrop {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
 }
 
 /* ==========================================================================
-   3. FLOATING ACTION BUTTON (FAB) & MOBILE NAVIGATION STACK
+   3. MOBILE FIXED BOTTOM NAVIGATION BAR
    ========================================================================== */
-
-/* Click-outside backdrop */
-.mobile-nav-backdrop {
+.mobile-bottom-nav {
   position: fixed;
-  inset: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  z-index: 998;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 180ms ease, visibility 180ms;
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-}
-
-.mobile-nav-backdrop.open {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-}
-
-/* Round Floating Action Button (FAB) — Matches Workspace Dark Background */
-.mobile-nav-fab {
-  position: fixed;
-  right: calc(16px + env(safe-area-inset-right, 0px));
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background-color: var(--bg-surface-elevated, #28292a);
-  color: var(--text-primary, #e3e3e3);
-  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.16));
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.65), 0 2px 6px rgba(0, 0, 0, 0.4);
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: calc(56px + env(safe-area-inset-bottom, 0px));
+  padding: 0 4px env(safe-area-inset-bottom, 0px) 4px;
+  background-color: rgba(22, 24, 28, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
+  justify-content: space-around;
   z-index: 1000;
-  transition: transform 180ms cubic-bezier(0.2, 0, 0, 1),
-              opacity 180ms ease,
-              background-color 150ms ease,
-              border-color 150ms ease,
-              color 150ms ease;
-  outline: none;
-  -webkit-tap-highlight-color: transparent;
-  padding: 0;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.45);
+  box-sizing: border-box;
+  user-select: none;
 }
 
-.mobile-nav-fab:hover {
-  background-color: var(--bg-surface-hover, #353739);
-  border-color: var(--border-active, rgba(255, 255, 255, 0.28));
-  color: #ffffff;
-}
-
-.mobile-nav-fab:active {
-  transform: scale(0.94);
-  background-color: var(--bg-surface, #1e1f20);
-}
-
-.mobile-nav-fab[aria-expanded="true"] {
-  background-color: var(--bg-surface, #1e1f20);
-  border-color: var(--google-blue, #8ab4f8);
-  color: var(--google-blue-text, #a8c7fa);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(138, 180, 248, 0.3);
-}
-
-.mobile-nav-fab:focus-visible {
-  outline: 2px solid var(--google-blue-text, #a8c7fa);
-  outline-offset: 3px;
-}
-
-/* Chevron Icon (rotates 180 degrees when open) */
-.mobile-nav-fab .mobile-fab-icon {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
-  will-change: transform;
-}
-
-.mobile-nav-fab[aria-expanded="true"] .mobile-fab-icon {
-  transform: rotate(180deg);
-}
-
-/* Scroll Hide State (hide while scrolling down, show when scrolling up) */
-.mobile-nav-fab.fab-hidden {
-  transform: translateY(90px) !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-}
-
-/* Navigation Menu Stack (Opens vertically above the FAB) */
-.mobile-nav-stack {
-  position: fixed;
-  right: calc(16px + env(safe-area-inset-right, 0px));
-  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
-  width: min(calc(100vw - 32px), 310px);
-  max-height: calc(100vh - 96px - env(safe-area-inset-bottom, 0px));
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  background-color: var(--bg-surface, #1e1f20);
-  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.14));
-  border-radius: 18px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.06);
-  padding: 8px;
-  z-index: 1000;
+.mobile-bottom-tab {
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 3px;
-  box-sizing: border-box;
-
-  /* Closed animation state: short fade and slide (180ms) */
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transform: translateY(12px) scale(0.96);
-  transform-origin: bottom right;
-  transition: opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
-              transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
-              visibility 180ms;
-}
-
-.mobile-nav-stack.open {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  transform: translateY(0) scale(1);
-}
-
-/* Header label inside mobile stack */
-.mobile-nav-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 12px 6px 10px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
-  color: var(--text-muted, #9aa0a6);
-  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
-  margin-bottom: 4px;
-  text-transform: uppercase;
-}
-
-/* Individual navigation item in mobile stack (at least 44px tall) */
-.mobile-nav-item {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  border-radius: 12px;
+  height: 100%;
+  min-height: 48px;
+  padding: 4px 2px;
   background: transparent;
   border: none;
-  color: var(--text-secondary, #c4c7c5);
-  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
-  transition: background-color 0.15s ease, color 0.15s ease;
   outline: none;
+  cursor: pointer;
+  color: var(--text-secondary, #9aa0a6);
+  transition: color 0.15s ease;
   -webkit-tap-highlight-color: transparent;
   box-sizing: border-box;
 }
 
-.mobile-nav-item:hover,
-.mobile-nav-item:focus-visible {
-  background-color: var(--bg-surface-elevated, #28292a);
+.mobile-bottom-tab:hover {
   color: var(--text-primary, #e3e3e3);
 }
 
-.mobile-nav-item:focus-visible {
-  outline: 2px solid var(--google-blue-text, #a8c7fa);
+.mobile-bottom-tab:focus-visible {
+  outline: 2px solid var(--google-blue, #8ab4f8);
   outline-offset: -2px;
+  border-radius: 8px;
 }
 
-/* Active Highlight */
-.mobile-nav-item.active {
-  background-color: var(--google-blue-container, rgba(66, 133, 244, 0.18));
-  color: var(--google-blue-text, #a8c7fa);
+/* Active tab highlight */
+.mobile-bottom-tab.active {
+  color: var(--google-blue, #8ab4f8) !important;
+}
+
+.mobile-bottom-tab.active .mobile-bottom-icon-wrap {
+  background-color: rgba(66, 133, 244, 0.18);
+}
+
+.mobile-bottom-tab.active .mobile-bottom-label {
   font-weight: 600;
-}
-
-.mobile-nav-item.active .mobile-nav-icon,
-.mobile-nav-item.active svg {
   color: var(--google-blue, #8ab4f8);
 }
 
-.mobile-nav-icon {
+/* Icon Wrap (Google Material 3 Pill Target) */
+.mobile-bottom-icon-wrap {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  color: var(--text-secondary, #c4c7c5);
+  width: 44px;
+  height: 26px;
+  border-radius: 14px;
+  transition: background-color 0.18s ease, transform 0.12s ease;
 }
 
-.mobile-nav-label {
-  flex: 1;
+.mobile-bottom-tab:active .mobile-bottom-icon-wrap {
+  transform: scale(0.92);
+}
+
+.mobile-bottom-tab svg {
+  width: 19px;
+  height: 19px;
+  stroke-width: 2.1;
+}
+
+/* Text Label */
+.mobile-bottom-label {
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  line-height: 1;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-/* Badges & Dots inside mobile nav items */
-.mobile-nav-badge {
-  font-size: 11px;
-  font-weight: 600;
-  background-color: var(--bg-surface-elevated, #28292a);
-  color: var(--text-secondary, #c4c7c5);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 2px 8px;
-  border-radius: 100px;
-  margin-left: auto;
+/* Badges on mobile bottom nav */
+.mobile-bottom-badge {
+  position: absolute;
+  top: -4px;
+  right: 2px;
+  background-color: var(--google-blue, #8ab4f8);
+  color: #0b0f19;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 10px;
   line-height: 1.2;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
-.mobile-nav-dot {
-  width: 8px;
-  height: 8px;
+/* Status dot on Call Room */
+.mobile-bottom-dot {
+  position: absolute;
+  top: 1px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  margin-left: auto;
-  flex-shrink: 0;
+  border: 1px solid rgba(22, 24, 28, 0.96);
 }
 
-.mobile-nav-dot.idle {
-  background-color: #9aa0a6;
+.mobile-bottom-dot.idle {
+  display: none;
 }
 
-.mobile-nav-dot.live {
+.mobile-bottom-dot.live {
   background-color: #81c995;
-  box-shadow: 0 0 8px rgba(129, 201, 149, 0.7);
+  box-shadow: 0 0 6px rgba(129, 201, 149, 0.9);
 }
 
-.mobile-nav-dot.scheduled {
+.mobile-bottom-dot.scheduled {
   background-color: #fdd663;
 }
 
-/* Expandable Settings & Logs Item */
-.mobile-nav-expandable {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
-
-.mobile-nav-caret {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 180ms ease;
-  color: var(--text-muted, #9aa0a6);
-}
-
-.mobile-nav-expand-btn[aria-expanded="true"] .mobile-nav-caret {
-  transform: rotate(180deg);
-}
-
-/* Settings & Logs Sub-pages Group */
-.mobile-subnav-group {
-  display: none;
-  flex-direction: column;
-  padding-left: 20px;
-  gap: 2px;
-  margin-top: 2px;
-  margin-bottom: 4px;
-  border-left: 2px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
-  margin-left: 18px;
-}
-
-.mobile-subnav-group.expanded {
-  display: flex;
-}
-
-/* Sub-page Item inside Settings & Logs (at least 44px tall) */
-.mobile-subnav-item {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: transparent;
-  border: none;
-  color: var(--text-muted, #9aa0a6);
-  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
-  transition: background-color 0.15s ease, color 0.15s ease;
-  outline: none;
-  -webkit-tap-highlight-color: transparent;
-  box-sizing: border-box;
-}
-
-.mobile-subnav-item:hover,
-.mobile-subnav-item:focus-visible {
-  background-color: var(--bg-surface-elevated, #28292a);
-  color: var(--text-primary, #e3e3e3);
-}
-
-.mobile-subnav-item:focus-visible {
-  outline: 2px solid var(--google-blue-text, #a8c7fa);
-  outline-offset: -2px;
-}
-
-.mobile-subnav-item.active {
-  color: var(--google-blue-text, #a8c7fa);
-  font-weight: 600;
-  background-color: rgba(66, 133, 244, 0.12);
-}
-
 /* ==========================================================================
-   4. REDUCED MOTION SUPPORT (Requirement 4)
+   4. REDUCED MOTION SUPPORT
    ========================================================================== */
 @media (prefers-reduced-motion: reduce) {
-  .mobile-nav-fab,
-  .mobile-nav-fab .mobile-fab-icon,
-  .mobile-nav-stack,
-  .mobile-nav-backdrop,
-  .mobile-nav-caret,
-  .mobile-subnav-group {
+  .mobile-bottom-tab,
+  .mobile-bottom-icon-wrap {
     transition: none !important;
     animation: none !important;
-  }
-
-  .mobile-nav-fab[aria-expanded="true"] .mobile-fab-icon {
-    transform: none !important;
-  }
-
-  .mobile-nav-expand-btn[aria-expanded="true"] .mobile-nav-caret {
-    transform: none !important;
   }
 }

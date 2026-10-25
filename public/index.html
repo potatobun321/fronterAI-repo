@@ -940,6 +940,48 @@
       </aside>
 
     </div>
+
+    <!-- Mobile Fixed Bottom Navigation Bar (Google Workspace Theme) -->
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Mobile Navigation">
+      <button type="button" class="mobile-bottom-tab active" data-view="view-tasks" id="mob-tab-tasks" aria-label="Tasks">
+        <span class="mobile-bottom-icon-wrap">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><path d="m9 14 2 2 4-4"></path></svg>
+          <span class="mobile-bottom-badge" id="mob-bottom-badge-tasks" style="display: none;">0</span>
+        </span>
+        <span class="mobile-bottom-label">Tasks</span>
+      </button>
+
+      <button type="button" class="mobile-bottom-tab" data-view="view-callroom" id="mob-tab-callroom" aria-label="Call Room">
+        <span class="mobile-bottom-icon-wrap">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+          <span class="mobile-bottom-dot idle" id="mob-bottom-dot-call"></span>
+        </span>
+        <span class="mobile-bottom-label">Meet</span>
+      </button>
+
+      <button type="button" class="mobile-bottom-tab" data-view="view-voting" id="mob-tab-voting" aria-label="Peer Review">
+        <span class="mobile-bottom-icon-wrap">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 12 2 2 4-4"></path><path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12H5V7Z"></path><path d="M22 19H2"></path></svg>
+          <span class="mobile-bottom-badge" id="mob-bottom-badge-voting" style="display: none;">0</span>
+        </span>
+        <span class="mobile-bottom-label">Review</span>
+      </button>
+
+      <button type="button" class="mobile-bottom-tab" data-view="view-peers" id="mob-tab-peers" aria-label="Team and Peers">
+        <span class="mobile-bottom-icon-wrap">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          <span class="mobile-bottom-badge" id="mob-bottom-badge-peers" style="display: none;">0</span>
+        </span>
+        <span class="mobile-bottom-label">Team</span>
+      </button>
+
+      <button type="button" class="mobile-bottom-tab mobile-admin-only" data-view="view-settings" id="mob-tab-admin" aria-label="Settings and Logs" style="display: none;">
+        <span class="mobile-bottom-icon-wrap">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        </span>
+        <span class="mobile-bottom-label">Admin</span>
+      </button>
+    </nav>
   </div>
 
   <!-- Clear All Confirmation Modal -->
