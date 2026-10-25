@@ -3,6 +3,13 @@
  * Personal vs. Global Dashboards, Host Authorization, Calendar & Peer Performance Voting
  */
 
+// ==============================================================================
+// AUTHENTICATION BYPASS TOGGLE (Direct Access Mode)
+// Set to true to bypass Google OAuth and directly access all pages as Lead.
+// Set to false to reconnect Google OAuth authentication.
+// ==============================================================================
+const AUTH_BYPASS = false;
+
 // Universal fetch interceptor for dual-persistent sessions (Bearer token + Cookie)
 const originalFetch = window.fetch;
 window.fetch = function (resource, options = {}) {
@@ -49,10 +56,13 @@ const state = {
   dockedCallActive: false,
   dockedCallMuted: false,
   dockedCallCamOff: false,
+  oauthConfigured: true,
   currentOracleThreadId: null,
   oracleThreads: [],
   currentSettingsSubtab: 'directory'
 };
+window.appState = state;
+window.showToast = showToast;
 
 export function showToast(message, isError = false) {
   const toast = document.getElementById('toast');
@@ -358,7 +368,21 @@ async function init() {
   await loadCurrentAuth();
   await loadMembers();
 
-  if (state.currentUser) {
+  if (AUTH_BYPASS || state.currentUser) {
+    if (!state.currentUser && AUTH_BYPASS) {
+      state.currentUser = {
+        id: 1,
+        github_numeric_id: 194890859,
+        handle: 'potatobun321',
+        name: 'Kartikay',
+        role: 'Team Host & Lead',
+        team_track: 'lead',
+        email: 'kart123.san@gmail.com',
+        is_host: 1,
+        is_allowed: 1
+      };
+      updateHeaderUserChip();
+    }
     showWorkspace();
     await loadTasks();
     await loadPersonalDashboard();
@@ -376,12 +400,20 @@ async function init() {
 }
 
 function showAuthScreen() {
+  if (AUTH_BYPASS) {
+    showWorkspace();
+    return;
+  }
+  document.documentElement.classList.remove('has-session');
   document.getElementById('auth-screen')?.classList.remove('hidden');
+  document.getElementById('auth-screen')?.removeAttribute('style');
   document.getElementById('workspace-app')?.classList.add('hidden');
 }
 
 function showWorkspace() {
+  document.documentElement.classList.add('has-session');
   document.getElementById('auth-screen')?.classList.add('hidden');
+  document.getElementById('auth-screen')?.setAttribute('style', 'display: none !important;');
   document.getElementById('workspace-app')?.classList.remove('hidden');
   applyRolePermissions();
   requestAnimationFrame(() => {
@@ -672,6 +704,7 @@ function setupNavigation() {
 }
 
 function switchView(viewId) {
+  window.switchView = switchView;
   // Graceful redirects from legacy view names
   if (viewId === 'view-personal') {
     viewId = 'view-tasks';
@@ -743,7 +776,19 @@ function switchView(viewId) {
 function setupAuthScreen() {
   // Visual feedback on Google OAuth sign-in click without blocking navigation
   const btnGoogle = document.getElementById('btn-google-oauth');
-  btnGoogle?.addEventListener('click', () => {
+  btnGoogle?.addEventListener('click', (e) => {
+    if (state.oauthConfigured === false) {
+      e.preventDefault();
+      const authAlert = document.getElementById('auth-alert');
+      const authAlertText = document.getElementById('auth-alert-text');
+      authAlert?.classList.remove('hidden');
+      if (authAlertText) {
+        authAlertText.innerHTML = `<strong>OAuth 2.0 Credentials Missing:</strong><br>
+        <code>GOOGLE_CLIENT_ID</code> or <code>GOOGLE_CLIENT_SECRET</code> is missing from the environment.<br>
+        Set these in your <code>.env</code> file or deployment settings to connect Google OAuth.`;
+      }
+      return;
+    }
     btnGoogle.style.opacity = '0.7';
     btnGoogle.style.cursor = 'wait';
   });
@@ -767,6 +812,11 @@ function setupAuthScreen() {
 
   // Sign Out Button in Account Menu
   document.getElementById('btn-header-signout')?.addEventListener('click', async () => {
+    if (AUTH_BYPASS) {
+      showToast('Authentication is currently bypassed. Direct access remains active.');
+      document.getElementById('persona-dropdown-menu')?.classList.add('hidden');
+      return;
+    }
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } catch (err) {}
@@ -839,6 +889,7 @@ function applyRolePermissions() {
   const navLabel4 = document.getElementById('nav-label-peers-settings');
   const navIcon4 = document.getElementById('nav-icon-peers-settings');
   const badgeTasklets = document.getElementById('badge-tasklets-count');
+  const directSettingsBtn = document.getElementById('nav-item-direct-settings');
 
   if (isHost) {
     if (productTag) productTag.textContent = 'Team Workspace';
@@ -851,10 +902,17 @@ function applyRolePermissions() {
     if (roleIndicator) roleIndicator.textContent = 'Role: Team Lead';
     if (roleDesc) roleDesc.textContent = 'Lead access: allot tasks, trigger sync calls, review sessions.';
 
-    if (navItem4) navItem4.dataset.view = 'view-settings';
-    if (navLabel4) navLabel4.textContent = 'Settings & Logs';
-    if (navIcon4) {
-      navIcon4.innerHTML = `<svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
+    if (directSettingsBtn) {
+      if (navItem4) navItem4.dataset.view = 'view-peers';
+      if (navLabel4) navLabel4.textContent = 'Peers';
+      directSettingsBtn.style.display = 'flex';
+    } else {
+      if (navItem4) navItem4.dataset.view = 'view-settings';
+      if (navLabel4) navLabel4.textContent = 'Settings & Logs';
+      if (navIcon4) {
+        navIcon4.innerHTML = `<svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
+      }
+      if (badgeTasklets) badgeTasklets.style.display = 'none';
     }
     if (badgeTasklets) badgeTasklets.style.display = 'none';
 
@@ -878,6 +936,7 @@ function applyRolePermissions() {
     if (navIcon4) {
       navIcon4.innerHTML = `<svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>`;
     }
+    if (directSettingsBtn) directSettingsBtn.style.display = 'none';
     updateTaskletBadges();
 
     const toggleSettingsBtn = document.getElementById('btn-toggle-settings-subitems');
@@ -912,6 +971,7 @@ async function loadCurrentAuth() {
     if (res.ok) {
       const data = await res.json();
       state.currentUser = data.user || data.member || null;
+      state.oauthConfigured = data.oauthConfigured !== false;
       if (data.token) {
         localStorage.setItem('frontier_session', data.token);
       } else if (!state.currentUser) {
@@ -4302,285 +4362,19 @@ function setupEventListeners() {
 
 // =============================================================
 // MODULE 5: FRONTIER ORACLE AI ASSISTANT CLIENT LOGIC
-// =============================================================
-
+// Reusable chat engine shared between Full Page and Side Panel
 async function loadOracleThreads() {
-  try {
-    const res = await fetch('/api/ai/threads');
-    if (!res.ok) return;
-    const data = await res.json();
-    state.oracleThreads = data.threads || [];
-    renderOracleThreadsList();
-  } catch (err) {
-    console.error('Failed to load Oracle threads:', err);
-  }
-}
-
-function renderOracleThreadsList() {
-  const container = document.getElementById('oracle-threads-list');
-  if (!container) return;
-
-  if (state.oracleThreads.length === 0) {
-    container.innerHTML = '<div style="color: var(--text-muted); font-size: 12px; padding: 12px; text-align: center;">No previous conversations.</div>';
-    return;
-  }
-
-  container.innerHTML = state.oracleThreads.map(t => `
-    <div class="oracle-thread-item ${t.id === state.currentOracleThreadId ? 'active' : ''}" data-thread-id="${t.id}" title="${escapeHtml(t.title)}">
-      <span class="oracle-thread-title">${escapeHtml(t.title)}</span>
-      <button type="button" class="oracle-thread-del-btn" data-thread-id="${t.id}" title="Delete thread" aria-label="Delete thread">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-      </button>
-    </div>
-  `).join('');
-
-  container.querySelectorAll('.oracle-thread-item').forEach(el => {
-    el.addEventListener('click', (e) => {
-      if (e.target.closest('.oracle-thread-del-btn')) return;
-      const threadId = parseInt(el.dataset.threadId, 10);
-      loadOracleThreadMessages(threadId);
-    });
-  });
-
-  container.querySelectorAll('.oracle-thread-del-btn').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const threadId = parseInt(btn.dataset.threadId, 10);
-      if (!confirm('Permanently delete this conversation thread?')) return;
-      try {
-        const res = await fetch(`/api/ai/threads/${threadId}`, { method: 'DELETE' });
-        if (res.ok) {
-          showToast('Conversation thread deleted.');
-          if (state.currentOracleThreadId === threadId) {
-            state.currentOracleThreadId = null;
-            const msgBox = document.getElementById('oracle-messages-box');
-            if (msgBox) {
-              msgBox.innerHTML = `
-                <div class="oracle-bubble oracle-bubble-model">
-                  <div class="oracle-bubble-avatar">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/></svg>
-                  </div>
-                  <div class="oracle-bubble-content">
-                    <p>Thread deleted. Started a new conversation.</p>
-                  </div>
-                </div>
-              `;
-            }
-          }
-          await loadOracleThreads();
-        } else {
-          showToast('Failed to delete thread', true);
-        }
-      } catch (err) {
-        showToast('Error deleting conversation', true);
-      }
-    });
-  });
-}
-
-async function loadOracleThreadMessages(threadId) {
-  state.currentOracleThreadId = threadId;
-  renderOracleThreadsList();
-
-  const msgBox = document.getElementById('oracle-messages-box');
-  if (!msgBox) return;
-
-  try {
-    const res = await fetch(`/api/ai/threads/${threadId}/messages`);
-    if (!res.ok) return;
-    const data = await res.json();
-
-    msgBox.innerHTML = '';
-    for (const msg of data.messages) {
-      appendOracleBubble(msg.sender_role, msg.content);
-    }
-    msgBox.scrollTop = msgBox.scrollHeight;
-  } catch (err) {
-    console.error('Failed to load messages for thread:', err);
-  }
-}
-
-function appendOracleBubble(senderRole, content) {
-  const msgBox = document.getElementById('oracle-messages-box');
-  if (!msgBox) return;
-
-  const isModel = senderRole === 'model';
-  const avatar = isModel
-    ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/></svg>`
-    : (state.currentUser ? getInitials(state.currentUser.name) : 'ME');
-  const roleClass = isModel ? 'oracle-bubble-model' : 'oracle-bubble-user';
-
-  const bubble = document.createElement('div');
-  bubble.className = `oracle-bubble ${roleClass}`;
-  bubble.innerHTML = `
-    <div class="oracle-bubble-avatar">${avatar}</div>
-    <div class="oracle-bubble-content">${formatOracleText(content)}</div>
-  `;
-
-  msgBox.appendChild(bubble);
-  msgBox.scrollTop = msgBox.scrollHeight;
-  return bubble;
-}
-
-function formatOracleText(text) {
-  if (!text) return '';
-  // Basic markdown formatting
-  let html = escapeHtml(text);
-
-  // Bold
-  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, '<code style="background: rgba(255,255,255,0.08); padding: 2px 5px; border-radius: 4px; font-family: var(--font-mono); font-size: 12px;">$1</code>');
-  // Headings
-  html = html.replace(/### (.*?)\n/g, '<h3 style="font-size: 14px; margin-top: 10px; margin-bottom: 6px; color: var(--google-blue);">$1</h3>');
-  // Bullet lists
-  html = html.replace(/(?:^|\n)[•\-] (.*?)(?=\n|$)/g, '<li style="margin-left: 18px; margin-bottom: 4px;">$1</li>');
-  // Paragraph line breaks
-  html = html.replace(/\n\n/g, '<br><br>');
-
-  return html;
-}
-
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-async function sendOracleMessage(userText) {
-  if (!userText || !userText.trim()) return;
-
-  // Render user bubble immediately
-  appendOracleBubble('user', userText.trim());
-
-  // Render temporary loading indicator
-  const msgBox = document.getElementById('oracle-messages-box');
-  const loadingBubble = document.createElement('div');
-  loadingBubble.className = 'oracle-bubble oracle-bubble-model';
-  loadingBubble.id = 'oracle-thinking-bubble';
-  loadingBubble.innerHTML = `
-    <div class="oracle-bubble-avatar">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/></svg>
-    </div>
-    <div class="oracle-bubble-content" style="color: var(--google-blue); font-style: italic;">
-      Consulting workspace memory...
-    </div>
-  `;
-  msgBox.appendChild(loadingBubble);
-  msgBox.scrollTop = msgBox.scrollHeight;
-
-  try {
-    const res = await fetch('/api/ai/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: userText.trim(),
-        threadId: state.currentOracleThreadId
-      })
-    });
-
-    loadingBubble.remove();
-
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      appendOracleBubble('model', `Error: ${errData.error || 'Failed to retrieve answer from Oracle.'}`);
-      return;
-    }
-
-    const data = await res.json();
-    state.currentOracleThreadId = data.threadId;
-
-    // Render response
-    appendOracleBubble('model', data.reply);
-
-    // Refresh threads list
-    await loadOracleThreads();
-  } catch (err) {
-    loadingBubble.remove();
-    appendOracleBubble('model', 'Network connection error when reaching Oracle.');
+  if (window.OracleChatEngine) {
+    return window.OracleChatEngine.loadThreads();
   }
 }
 
 function setupOracleListeners() {
-  const form = document.getElementById('form-oracle-chat');
-  const input = document.getElementById('oracle-input-text');
-
-  form?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const text = input?.value || '';
-    if (!text.trim()) return;
-    input.value = '';
-    sendOracleMessage(text);
-  });
-
-  // Suggestion chips
-  document.querySelectorAll('#oracle-quick-chips .oracle-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      const prompt = chip.dataset.prompt;
-      if (prompt) sendOracleMessage(prompt);
-    });
-  });
-
-  // Clear All Chats button
-  document.getElementById('btn-oracle-clear-all')?.addEventListener('click', async () => {
-    if (!state.oracleThreads || state.oracleThreads.length === 0) {
-      showToast('No conversations to clear');
-      return;
-    }
-    if (!confirm('Permanently delete all your conversation history with Frontier Oracle? This cannot be undone.')) return;
-    try {
-      const res = await fetch('/api/ai/threads', { method: 'DELETE' });
-      if (res.ok) {
-        showToast('All conversations cleared.');
-        state.currentOracleThreadId = null;
-        state.oracleThreads = [];
-        renderOracleThreadsList();
-        const msgBox = document.getElementById('oracle-messages-box');
-        if (msgBox) {
-          msgBox.innerHTML = `
-            <div class="oracle-bubble oracle-bubble-model">
-              <div class="oracle-bubble-avatar">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/></svg>
-              </div>
-              <div class="oracle-bubble-content">
-                <p>All conversations cleared.</p>
-                <p>Ask anything about current sprint tasks, deadlines, meeting slots, or team assignments.</p>
-              </div>
-            </div>
-          `;
-        }
-      } else {
-        showToast('Failed to clear conversations', true);
-      }
-    } catch (e) {
-      showToast('Error clearing chat history', true);
-    }
-  });
-
-  // New Chat button
-  document.getElementById('btn-oracle-new-thread')?.addEventListener('click', () => {
-    state.currentOracleThreadId = null;
-    renderOracleThreadsList();
-    const msgBox = document.getElementById('oracle-messages-box');
-    if (msgBox) {
-      msgBox.innerHTML = `
-        <div class="oracle-bubble oracle-bubble-model">
-          <div class="oracle-bubble-avatar">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/></svg>
-          </div>
-          <div class="oracle-bubble-content">
-            <p>Started a new conversation.</p>
-            <p>Ask anything about current sprint tasks, deadlines, meeting slots, or team assignments.</p>
-          </div>
-        </div>
-      `;
-    }
-  });
+  if (window.OracleChatEngine) {
+    window.OracleChatEngine.setupFullPageListeners();
+  }
 }
+
 
 // Start app
 window.addEventListener('DOMContentLoaded', init);

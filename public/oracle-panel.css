@@ -1,0 +1,877 @@
+/**
+ * Frontier AI Workspace — Oracle AI Side Panel Styles (oracle-panel.css)
+ * Implements:
+ * 1. Top bar button (same sparkle icon & blue circle look, open ring, tooltip)
+ * 2. Docked side panel on right, below top bar, default 400px, 200ms slide-in
+ * 3. Responsive behavior:
+ *    - >= 1200px: Page content smoothly shrinks to make room
+ *    - 769px - 1199px: Panel floats over page with elevated shadow
+ *    - <= 768px: Full-screen sheet
+ * 4. Resizable drag handle on left edge (340px - 560px)
+ * 5. Three-dot menu popover with role="menu" and danger styling
+ * 6. Gemini-like empty state, copy buttons on hover, auto-growing input, history view
+ * 7. Reduced motion support
+ */
+
+:root {
+  --oracle-panel-width: 400px;
+}
+
+/* ==========================================================================
+   1. TOPBAR AI BUTTON
+   ========================================================================== */
+.oracle-topbar-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(168, 199, 250, 0.15);
+  color: var(--google-blue, #8ab4f8);
+  border: 1px solid rgba(168, 199, 250, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.2, 0, 0, 1);
+  margin-right: 12px;
+  padding: 0;
+  outline: none;
+  flex-shrink: 0;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.oracle-topbar-btn:hover {
+  background: rgba(168, 199, 250, 0.28);
+  border-color: rgba(168, 199, 250, 0.6);
+  color: #d2e3fc;
+  transform: scale(1.05);
+}
+
+.oracle-topbar-btn:active {
+  transform: scale(0.95);
+}
+
+/* Ring indicator when panel is open */
+.oracle-topbar-btn[aria-expanded="true"] {
+  background: rgba(168, 199, 250, 0.28);
+  border-color: var(--google-blue, #8ab4f8);
+  color: #ffffff;
+  box-shadow: 0 0 0 2px var(--bg-surface, #1e1f20), 0 0 0 4px var(--google-blue, #8ab4f8), 0 0 12px rgba(138, 180, 248, 0.4);
+}
+
+.oracle-topbar-btn:focus-visible {
+  outline: 2px solid var(--google-blue-text, #a8c7fa);
+  outline-offset: 3px;
+}
+
+/* ==========================================================================
+   2. DOCKED SIDE PANEL & CONTENT SHRINKAGE (>=1200px)
+   ========================================================================== */
+
+/* Main canvas transition to animate page content shrinking */
+.workspace-canvas {
+  transition: max-width 200ms cubic-bezier(0.2, 0, 0, 1),
+              flex-basis 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Side panel docked on the right */
+.oracle-side-panel {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-surface, #1e1f20);
+  border-left: 1px solid var(--border-default, rgba(255, 255, 255, 0.14));
+  box-sizing: border-box;
+  overflow: hidden;
+  z-index: 100;
+  position: relative;
+  will-change: width, transform;
+}
+
+/* Desktop 1200px and wider: Content shrinks to make room */
+@media (min-width: 1200px) {
+  .oracle-side-panel {
+    flex-shrink: 0;
+    width: 0;
+    min-width: 0;
+    border-left-width: 0;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: width 200ms cubic-bezier(0.2, 0, 0, 1),
+                border-left-width 200ms ease,
+                opacity 150ms ease,
+                visibility 200ms;
+  }
+
+  .oracle-side-panel.open {
+    width: var(--oracle-panel-width, 400px);
+    min-width: 340px;
+    max-width: 560px;
+    border-left-width: 1px;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+}
+
+/* ==========================================================================
+   3. RESPONSIVE FLOATING PANEL (769px - 1199px)
+   ========================================================================== */
+@media (min-width: 769px) and (max-width: 1199px) {
+  .oracle-side-panel {
+    position: fixed !important;
+    top: 60px !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    height: calc(100vh - 60px) !important;
+    width: var(--oracle-panel-width, 400px) !important;
+    min-width: 340px !important;
+    max-width: 85vw !important;
+    z-index: 950 !important;
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+    transform: translateX(100%);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform 200ms cubic-bezier(0.2, 0, 0, 1),
+                opacity 180ms ease,
+                visibility 200ms !important;
+  }
+
+  .oracle-side-panel.open {
+    transform: translateX(0) !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+}
+
+/* ==========================================================================
+   4. RESPONSIVE FULL-SCREEN SHEET (<=768px)
+   ========================================================================== */
+@media (max-width: 768px) {
+  .oracle-side-panel {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    z-index: 1200 !important;
+    border-left: none !important;
+    transform: translateY(100%);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform 200ms cubic-bezier(0.2, 0, 0, 1),
+                opacity 180ms ease,
+                visibility 200ms !important;
+  }
+
+  .oracle-side-panel.open {
+    transform: translateY(0) !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+
+  .oracle-resize-handle {
+    display: none !important;
+  }
+}
+
+/* ==========================================================================
+   5. RESIZE DRAG HANDLE (DESKTOP)
+   ========================================================================== */
+.oracle-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 7px;
+  cursor: ew-resize;
+  z-index: 20;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.oracle-resize-handle:hover,
+.oracle-resize-handle.resizing {
+  background: var(--google-blue, #8ab4f8);
+  box-shadow: 0 0 6px var(--google-blue, #8ab4f8);
+}
+
+/* ==========================================================================
+   6. PANEL HEADER & THREE-DOT MENU
+   ========================================================================== */
+.oracle-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  background-color: var(--bg-surface-elevated, #28292a);
+  flex-shrink: 0;
+  position: relative;
+}
+
+.oracle-panel-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.oracle-panel-sparkle {
+  color: var(--google-blue, #8ab4f8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.oracle-panel-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary, #e3e3e3);
+  letter-spacing: -0.2px;
+  margin: 0;
+}
+
+.oracle-panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.oracle-header-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary, #c4c7c5);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.oracle-header-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary, #ffffff);
+}
+
+.oracle-header-btn:focus-visible {
+  outline: 2px solid var(--google-blue-text, #a8c7fa);
+  outline-offset: 2px;
+}
+
+/* Three-dot Popover Menu */
+.oracle-menu-popover {
+  position: absolute;
+  top: 48px;
+  right: 12px;
+  width: 220px;
+  background-color: var(--bg-surface, #1e1f20);
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.14));
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  padding: 6px;
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transform-origin: top right;
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.oracle-menu-popover.hidden {
+  display: none;
+}
+
+.oracle-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary, #c4c7c5);
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background-color 0.12s ease, color 0.12s ease;
+  outline: none;
+}
+
+.oracle-menu-item:hover,
+.oracle-menu-item:focus-visible,
+.oracle-menu-item.focused {
+  background-color: var(--bg-surface-elevated, #28292a);
+  color: var(--text-primary, #ffffff);
+}
+
+.oracle-menu-item svg {
+  color: var(--text-muted, #9aa0a6);
+  flex-shrink: 0;
+}
+
+.oracle-menu-item:hover svg,
+.oracle-menu-item:focus-visible svg {
+  color: var(--google-blue, #8ab4f8);
+}
+
+.oracle-menu-item-danger {
+  color: #f28b82 !important;
+}
+
+.oracle-menu-item-danger svg {
+  color: #f28b82 !important;
+}
+
+.oracle-menu-item-danger:hover,
+.oracle-menu-item-danger:focus-visible {
+  background-color: rgba(234, 67, 53, 0.15) !important;
+  color: #ff8182 !important;
+}
+
+.oracle-menu-divider {
+  height: 1px;
+  background-color: var(--border-subtle, rgba(255, 255, 255, 0.08));
+  margin: 4px 6px;
+}
+
+/* ==========================================================================
+   7. CHAT AREA & MESSAGES
+   ========================================================================== */
+.oracle-panel-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.oracle-panel-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overscroll-behavior: contain;
+}
+
+/* Empty State (Gemini-inspired) */
+.oracle-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px 16px;
+  margin: auto 0;
+}
+
+.oracle-empty-sparkle {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(168, 199, 250, 0.15);
+  color: var(--google-blue, #8ab4f8);
+  border: 1px solid rgba(168, 199, 250, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  animation: floatSparkle 3s ease-in-out infinite;
+  box-sizing: border-box;
+}
+
+.oracle-empty-sparkle svg {
+  width: 26px;
+  height: 26px;
+  display: block;
+  flex-shrink: 0;
+  color: var(--google-blue, #8ab4f8);
+}
+
+.oracle-panel-sparkle svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  flex-shrink: 0;
+  color: var(--google-blue, #8ab4f8);
+}
+
+.oracle-bubble-avatar svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+@keyframes floatSparkle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.oracle-empty-greeting {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-primary, #e3e3e3);
+  margin-bottom: 8px;
+  letter-spacing: -0.3px;
+}
+
+.oracle-empty-subtext {
+  font-size: 12.5px;
+  color: var(--text-muted, #9aa0a6);
+  max-width: 280px;
+  line-height: 1.45;
+  margin-bottom: 24px;
+}
+
+/* Vertical Rounded Quick Chips */
+.oracle-quick-chips-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.oracle-quick-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background-color: var(--bg-surface-elevated, #28292a);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  color: var(--text-primary, #e3e3e3);
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.oracle-quick-btn:hover {
+  background-color: rgba(168, 199, 250, 0.12);
+  border-color: rgba(168, 199, 250, 0.35);
+  color: #ffffff;
+  transform: translateX(2px);
+}
+
+.oracle-quick-btn:focus-visible {
+  outline: 2px solid var(--google-blue-text, #a8c7fa);
+  outline-offset: 1px;
+}
+
+.oracle-quick-btn svg {
+  color: var(--google-blue, #8ab4f8);
+  flex-shrink: 0;
+}
+
+/* Chat Bubbles */
+.oracle-bubble {
+  display: flex;
+  gap: 10px;
+  max-width: 90%;
+  word-break: break-word;
+  position: relative;
+}
+
+.oracle-bubble-user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.oracle-bubble-model {
+  align-self: flex-start;
+}
+
+.oracle-bubble-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.oracle-bubble-model .oracle-bubble-avatar {
+  background: rgba(168, 199, 250, 0.18);
+  color: var(--google-blue, #8ab4f8);
+  border: 1px solid rgba(168, 199, 250, 0.3);
+}
+
+.oracle-bubble-user .oracle-bubble-avatar {
+  background: var(--bg-surface-elevated, #28292a);
+  color: var(--text-primary, #e3e3e3);
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.15));
+}
+
+.oracle-bubble-content {
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-primary, #e3e3e3);
+  position: relative;
+}
+
+.oracle-bubble-user .oracle-bubble-content {
+  background-color: var(--bg-surface-elevated, #28292a);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-top-right-radius: 4px;
+}
+
+.oracle-bubble-model .oracle-bubble-content {
+  background-color: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  border-top-left-radius: 4px;
+}
+
+/* Copy Button on Oracle message hover */
+.oracle-copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--bg-surface-elevated, #28292a);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
+  color: var(--text-muted, #9aa0a6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.oracle-bubble:hover .oracle-copy-btn {
+  opacity: 1;
+}
+
+.oracle-copy-btn:hover {
+  color: #ffffff;
+  border-color: var(--google-blue, #8ab4f8);
+}
+
+.oracle-copy-btn.copied {
+  color: #81c995 !important;
+  opacity: 1 !important;
+}
+
+/* ==========================================================================
+   8. INPUT AT BOTTOM & AUTO-GROWING TEXTAREA
+   ========================================================================== */
+.oracle-panel-footer {
+  padding: 12px 14px;
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  background-color: var(--bg-surface-elevated, #28292a);
+  flex-shrink: 0;
+}
+
+/* Display-Only Context Label (Requirement 9) */
+.oracle-context-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted, #9aa0a6);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 2px 8px;
+  border-radius: 100px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 8px;
+}
+
+.oracle-context-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--google-blue, #8ab4f8);
+}
+
+.oracle-input-box {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background-color: var(--bg-canvas, #131314);
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.15));
+  border-radius: 20px;
+  padding: 6px 12px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.oracle-input-box:focus-within {
+  border-color: var(--google-blue, #8ab4f8);
+  box-shadow: 0 0 0 2px rgba(138, 180, 248, 0.2);
+}
+
+.oracle-textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary, #e3e3e3);
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+  font-size: 13.5px;
+  line-height: 1.45;
+  resize: none;
+  max-height: 140px;
+  min-height: 24px;
+  outline: none;
+  padding: 4px 0;
+  box-sizing: border-box;
+}
+
+.oracle-textarea::placeholder {
+  color: var(--text-muted, #9aa0a6);
+}
+
+.oracle-send-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--google-blue, #1a73e8);
+  color: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.oracle-send-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-muted, #9aa0a6);
+}
+
+.oracle-send-btn:not(:disabled):hover {
+  background: #1b66ca;
+  transform: scale(1.05);
+}
+
+/* ==========================================================================
+   9. HISTORY VIEW INSIDE THE PANEL
+   ========================================================================== */
+.oracle-history-view {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.oracle-history-view.active {
+  display: flex;
+}
+
+.oracle-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  font-size: 12px;
+  color: var(--text-muted, #9aa0a6);
+}
+
+.oracle-history-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: var(--google-blue, #8ab4f8);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.oracle-history-back-btn:hover {
+  background: rgba(168, 199, 250, 0.12);
+}
+
+.oracle-history-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.oracle-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary, #e3e3e3);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.oracle-history-item:hover {
+  background-color: var(--bg-surface-elevated, #28292a);
+}
+
+.oracle-history-item.active {
+  background-color: rgba(168, 199, 250, 0.12);
+  color: var(--google-blue-text, #a8c7fa);
+  font-weight: 600;
+}
+
+.oracle-history-item-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 8px;
+}
+
+.oracle-history-del-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #9aa0a6);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.oracle-history-item:hover .oracle-history-del-btn {
+  opacity: 1;
+}
+
+.oracle-history-del-btn:hover {
+  color: #f28b82;
+  background: rgba(234, 67, 53, 0.12);
+}
+
+.oracle-history-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text-muted, #9aa0a6);
+  font-size: 13px;
+}
+
+/* ==========================================================================
+   10. MODALS (CLEAR ALL CONFIRMATION & KEYBOARD SHORTCUTS)
+   ========================================================================== */
+.oracle-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 16px;
+}
+
+.oracle-modal-overlay.hidden {
+  display: none;
+}
+
+.oracle-modal-box {
+  background-color: var(--bg-surface, #1e1f20);
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.15));
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8);
+  width: 100%;
+  max-width: 360px;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.oracle-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.oracle-modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary, #e3e3e3);
+  margin: 0;
+}
+
+.oracle-modal-desc {
+  font-size: 13px;
+  color: var(--text-muted, #9aa0a6);
+  line-height: 1.45;
+  margin-bottom: 20px;
+}
+
+.oracle-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.oracle-shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  font-size: 13px;
+  color: var(--text-secondary, #c4c7c5);
+}
+
+.oracle-shortcut-row kbd {
+  background: var(--bg-surface-elevated, #28292a);
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.14));
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--text-primary, #ffffff);
+}
+
+/* ==========================================================================
+   11. REDUCED MOTION
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .oracle-side-panel,
+  .workspace-canvas,
+  .oracle-topbar-btn,
+  .oracle-empty-sparkle,
+  .oracle-menu-popover {
+    transition: none !important;
+    animation: none !important;
+  }
+}
