@@ -564,42 +564,8 @@ function switchSettingsSubtab(subtab = 'directory') {
 function setupNavigation() {
   const navItems = document.querySelectorAll('.nav-item');
   navItems.forEach(item => {
-    item.addEventListener('click', (e) => {
-      // If clicking inside the dropdown toggle button, do not switch view from the parent nav-item
-      if (e.target.closest('#btn-toggle-settings-subitems')) {
-        return;
-      }
+    item.addEventListener('click', () => {
       switchView(item.dataset.view);
-      if (item.id === 'nav-item-peers-settings' && state.currentUser?.is_host) {
-        setSettingsSubmenuOpen(true);
-      }
-    });
-  });
-
-  // Settings Submenu Dropdown Toggle & Items
-  const toggleBtn = document.getElementById('btn-toggle-settings-subitems');
-  toggleBtn?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleSettingsSubmenu();
-  });
-
-  toggleBtn?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      e.stopPropagation();
-      toggleSettingsSubmenu();
-    }
-  });
-
-  // Subitem clicks inside settings submenu -> opens respective dashboard
-  document.querySelectorAll('.nav-subitem').forEach(subBtn => {
-    subBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const targetSubtab = subBtn.dataset.settingsTab;
-      if (!targetSubtab) return;
-
-      switchView('view-settings');
-      switchSettingsSubtab(targetSubtab);
     });
   });
 
@@ -895,12 +861,16 @@ function applyRolePermissions() {
   const roleDesc = document.getElementById('sidebar-role-desc');
   const productTag = document.querySelector('.workspace-product-tag');
 
-  // Sidebar Item 4: Peers (Members) vs Settings & Logs (Lead)
+  // Sidebar Item 4: Team & Peers (All) & Item 5: Settings & Logs (Lead)
   const navItem4 = document.getElementById('nav-item-peers-settings');
   const navLabel4 = document.getElementById('nav-label-peers-settings');
   const navIcon4 = document.getElementById('nav-icon-peers-settings');
   const badgeTasklets = document.getElementById('badge-tasklets-count');
   const directSettingsBtn = document.getElementById('nav-item-direct-settings');
+  const btnOnboardPeers = document.getElementById('btn-open-onboard-peers');
+
+  if (navItem4) navItem4.dataset.view = 'view-peers';
+  if (navLabel4) navLabel4.textContent = 'Team & Peers';
 
   if (isHost) {
     if (productTag) productTag.textContent = 'Team Workspace';
@@ -913,24 +883,9 @@ function applyRolePermissions() {
     if (roleIndicator) roleIndicator.textContent = 'Role: Team Lead';
     if (roleDesc) roleDesc.textContent = 'Lead access: allot tasks, trigger sync calls, review sessions.';
 
-    if (directSettingsBtn) {
-      if (navItem4) navItem4.dataset.view = 'view-peers';
-      if (navLabel4) navLabel4.textContent = 'Peers';
-      directSettingsBtn.style.display = 'flex';
-    } else {
-      if (navItem4) navItem4.dataset.view = 'view-settings';
-      if (navLabel4) navLabel4.textContent = 'Settings & Logs';
-      if (navIcon4) {
-        navIcon4.innerHTML = `<svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
-      }
-      if (badgeTasklets) badgeTasklets.style.display = 'none';
-    }
+    if (directSettingsBtn) directSettingsBtn.style.display = 'flex';
+    if (btnOnboardPeers) btnOnboardPeers.style.display = 'inline-flex';
     if (badgeTasklets) badgeTasklets.style.display = 'none';
-
-    const toggleSettingsBtn = document.getElementById('btn-toggle-settings-subitems');
-    const settingsSubitemsContainer = document.getElementById('nav-settings-subitems');
-    if (toggleSettingsBtn) toggleSettingsBtn.style.display = 'inline-flex';
-    if (settingsSubitemsContainer) settingsSubitemsContainer.style.display = 'flex';
   } else {
     if (productTag) productTag.textContent = 'Student Workspace';
     if (hostPill) {
@@ -942,18 +897,9 @@ function applyRolePermissions() {
     if (roleIndicator) roleIndicator.textContent = 'Role: Member';
     if (roleDesc) roleDesc.textContent = 'Member access: my tasks, call room, peer review, and peers.';
 
-    if (navItem4) navItem4.dataset.view = 'view-peers';
-    if (navLabel4) navLabel4.textContent = 'Peers';
-    if (navIcon4) {
-      navIcon4.innerHTML = `<svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>`;
-    }
     if (directSettingsBtn) directSettingsBtn.style.display = 'none';
+    if (btnOnboardPeers) btnOnboardPeers.style.display = 'none';
     updateTaskletBadges();
-
-    const toggleSettingsBtn = document.getElementById('btn-toggle-settings-subitems');
-    const settingsSubitemsContainer = document.getElementById('nav-settings-subitems');
-    if (toggleSettingsBtn) toggleSettingsBtn.style.display = 'none';
-    if (settingsSubitemsContainer) settingsSubitemsContainer.style.display = 'none';
   }
 
   // Authorator-only action buttons in the UI
@@ -3357,13 +3303,68 @@ function setupModals() {
   const taskletModal = document.getElementById('modal-send-tasklet');
   const feedbackModal = document.getElementById('modal-send-feedback');
 
-  document.getElementById('btn-open-send-tasklet')?.addEventListener('click', () => openSendTaskletModal());
-  document.getElementById('btn-close-send-tasklet-modal')?.addEventListener('click', () => taskletModal?.close());
-  document.getElementById('btn-cancel-send-tasklet')?.addEventListener('click', () => taskletModal?.close());
+  document.getElementById('btn-open-onboard-peers')?.addEventListener('click', () => {
+    document.getElementById('modal-onboard-member')?.showModal();
+  });
 
-  document.getElementById('btn-open-send-feedback')?.addEventListener('click', () => openSendFeedbackModal());
-  document.getElementById('btn-close-send-feedback-modal')?.addEventListener('click', () => feedbackModal?.close());
-  document.getElementById('btn-cancel-send-feedback')?.addEventListener('click', () => feedbackModal?.close());
+  // Tasklet Recipient Select Toggle & Change
+  document.getElementById('btn-toggle-tasklet-receiver-select')?.addEventListener('click', () => {
+    document.getElementById('wrap-tasklet-receiver-select')?.classList.toggle('hidden');
+  });
+  document.getElementById('tasklet-receiver')?.addEventListener('change', (e) => {
+    const id = parseInt(e.target.value, 10);
+    const target = (state.members || []).find(m => m.id === id);
+    if (target) updateTaskletRecipientDisplay(target);
+  });
+
+  // Tasklet Preset Chips (Professional, No Emojis)
+  document.querySelectorAll('.tasklet-preset-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const prefix = chip.dataset.prefix;
+      const titleInput = document.getElementById('tasklet-title');
+      if (titleInput && prefix) {
+        titleInput.value = prefix;
+        titleInput.focus();
+      }
+    });
+  });
+
+  // Tasklet Dialog Shortcut (Ctrl+Enter to send)
+  taskletModal?.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      document.getElementById('form-send-tasklet')?.dispatchEvent(new Event('submit', { cancelable: true }));
+    }
+  });
+
+  // Feedback Recipient Select Toggle & Change
+  document.getElementById('btn-toggle-feedback-receiver-select')?.addEventListener('click', () => {
+    document.getElementById('wrap-feedback-receiver-select')?.classList.toggle('hidden');
+  });
+  document.getElementById('feedback-receiver')?.addEventListener('change', (e) => {
+    const id = parseInt(e.target.value, 10);
+    const target = (state.members || []).find(m => m.id === id);
+    if (target) updateFeedbackRecipientDisplay(target);
+  });
+
+  // Feedback Category Pills (Professional, No Emojis)
+  document.querySelectorAll('.feedback-cat-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('.feedback-cat-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      const cat = pill.dataset.cat;
+      const catInput = document.getElementById('feedback-category');
+      if (catInput && cat) catInput.value = cat;
+    });
+  });
+
+  // Feedback Dialog Shortcut (Ctrl+Enter to send)
+  feedbackModal?.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      document.getElementById('form-send-feedback')?.dispatchEvent(new Event('submit', { cancelable: true }));
+    }
+  });
 
   // Main Mode Toggle (Micro-Tasks vs Peer Feedback)
   document.querySelectorAll('#peers-main-mode-toggle button').forEach(btn => {
@@ -3678,13 +3679,25 @@ window.handleTaskletStatus = async function(id, status) {
   }
 };
 
+function updateTaskletRecipientDisplay(member) {
+  if (!member) return;
+  const avatar = document.getElementById('tasklet-recipient-avatar');
+  const name = document.getElementById('tasklet-recipient-name');
+  const role = document.getElementById('tasklet-recipient-role');
+  if (avatar) avatar.textContent = getInitials(member.name);
+  if (name) name.textContent = member.name;
+  if (role) role.textContent = `${member.role} · ${(member.team_track || 'General').toUpperCase()}`;
+}
+
 function openSendTaskletModal(preselectedReceiverId = null) {
   const modal = document.getElementById('modal-send-tasklet');
   if (!modal) return;
   const select = document.getElementById('tasklet-receiver');
+  const otherMembers = (state.members || []).filter(m => m.id !== state.currentUser?.id);
+
   if (select) {
     select.innerHTML = '';
-    (state.members || []).filter(m => m.id !== state.currentUser?.id).forEach(m => {
+    otherMembers.forEach(m => {
       const opt = document.createElement('option');
       opt.value = m.id;
       opt.textContent = `${m.name} (@${m.handle} · ${m.role})`;
@@ -3694,18 +3707,41 @@ function openSendTaskletModal(preselectedReceiverId = null) {
       select.appendChild(opt);
     });
   }
-  document.getElementById('tasklet-title').value = '';
-  document.getElementById('tasklet-desc').value = '';
+
+  const selectedId = preselectedReceiverId || (select && parseInt(select.value, 10)) || otherMembers[0]?.id;
+  const target = (state.members || []).find(m => m.id === selectedId) || otherMembers[0];
+  if (target) {
+    updateTaskletRecipientDisplay(target);
+    if (select) select.value = target.id;
+  }
+
+  const titleEl = document.getElementById('tasklet-title');
+  const descEl = document.getElementById('tasklet-desc');
+  if (titleEl) titleEl.value = '';
+  if (descEl) descEl.value = '';
+  document.getElementById('wrap-tasklet-receiver-select')?.classList.add('hidden');
   modal.showModal();
+}
+
+function updateFeedbackRecipientDisplay(member) {
+  if (!member) return;
+  const avatar = document.getElementById('feedback-recipient-avatar');
+  const name = document.getElementById('feedback-recipient-name');
+  const role = document.getElementById('feedback-recipient-role');
+  if (avatar) avatar.textContent = getInitials(member.name);
+  if (name) name.textContent = member.name;
+  if (role) role.textContent = `${member.role} · ${(member.team_track || 'General').toUpperCase()}`;
 }
 
 function openSendFeedbackModal(preselectedReceiverId = null) {
   const modal = document.getElementById('modal-send-feedback');
   if (!modal) return;
   const select = document.getElementById('feedback-receiver');
+  const otherMembers = (state.members || []).filter(m => m.id !== state.currentUser?.id);
+
   if (select) {
     select.innerHTML = '';
-    (state.members || []).filter(m => m.id !== state.currentUser?.id).forEach(m => {
+    otherMembers.forEach(m => {
       const opt = document.createElement('option');
       opt.value = m.id;
       opt.textContent = `${m.name} (@${m.handle} · ${m.role})`;
@@ -3715,12 +3751,29 @@ function openSendFeedbackModal(preselectedReceiverId = null) {
       select.appendChild(opt);
     });
   }
+
+  const selectedId = preselectedReceiverId || (select && parseInt(select.value, 10)) || otherMembers[0]?.id;
+  const target = (state.members || []).find(m => m.id === selectedId) || otherMembers[0];
+  if (target) {
+    updateFeedbackRecipientDisplay(target);
+    if (select) select.value = target.id;
+  }
+
   const titleEl = document.getElementById('feedback-title');
   const descEl = document.getElementById('feedback-desc');
   const anonEl = document.getElementById('feedback-is-anonymous');
   if (titleEl) titleEl.value = '';
   if (descEl) descEl.value = '';
   if (anonEl) anonEl.checked = false;
+
+  // Reset category pills
+  document.querySelectorAll('.feedback-cat-pill').forEach((p, idx) => {
+    p.classList.toggle('active', idx === 0);
+  });
+  const catInput = document.getElementById('feedback-category');
+  if (catInput) catInput.value = 'KUDOS';
+
+  document.getElementById('wrap-feedback-receiver-select')?.classList.add('hidden');
   modal.showModal();
 }
 
