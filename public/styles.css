@@ -280,11 +280,11 @@ body {
 
 .persona-menu.desktop-sidebar-menu {
   position: fixed !important;
-  bottom: 72px !important;
+  bottom: 84px !important;
   left: 14px !important;
   top: auto !important;
   right: auto !important;
-  width: 280px !important;
+  width: 310px !important;
   z-index: 1200 !important;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--border-default);
 }
@@ -331,17 +331,26 @@ body {
 
 .persona-info-wrap {
   flex: 1;
+  min-width: 0;
 }
 
 .persona-opt-name {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .persona-opt-sub {
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--text-muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 215px;
 }
 
 .persona-check {

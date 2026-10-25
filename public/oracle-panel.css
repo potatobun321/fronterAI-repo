@@ -21,22 +21,28 @@
    1. TOPBAR AI BUTTON
    ========================================================================== */
 .oracle-topbar-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  height: 36px;
+  width: auto;
+  min-width: 36px;
+  border-radius: 18px;
   background: rgba(168, 199, 250, 0.15);
   color: var(--google-blue, #8ab4f8);
   border: 1px solid rgba(168, 199, 250, 0.3);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   cursor: pointer;
   transition: all 0.18s cubic-bezier(0.2, 0, 0, 1);
-  margin-right: 12px;
-  padding: 0;
+  margin-right: 0;
+  padding: 0 14px 0 12px;
   outline: none;
   flex-shrink: 0;
   position: relative;
+  white-space: nowrap;
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+  font-size: 13px;
+  font-weight: 600;
   -webkit-tap-highlight-color: transparent;
 }
 
