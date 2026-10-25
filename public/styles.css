@@ -280,11 +280,11 @@ body {
 
 .persona-menu.desktop-sidebar-menu {
   position: fixed !important;
-  bottom: 84px !important;
-  left: 14px !important;
+  bottom: 96px;
+  left: 14px;
   top: auto !important;
   right: auto !important;
-  width: 310px !important;
+  width: 310px;
   z-index: 1200 !important;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--border-default);
 }
