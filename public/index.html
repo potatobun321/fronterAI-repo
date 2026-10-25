@@ -104,16 +104,18 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
           </svg>
+          <span class="oracle-btn-label">Oracle AI</span>
+          <span class="oracle-btn-kbd">Ctrl+/</span>
         </button>
 
         <div class="account-chip" id="user-chip-menu-trigger" title="Switch active profile">
-          <div class="user-avatar" id="header-user-avatar">AV</div>
+          <div class="user-avatar" id="header-user-avatar">--</div>
           <div class="user-details">
             <div class="user-name-row">
-              <span class="user-name" id="header-user-name">Alice Vance</span>
-              <span class="host-pill-tag" id="header-host-indicator">LEAD</span>
+              <span class="user-name" id="header-user-name">Loading...</span>
+              <span class="host-pill-tag" id="header-host-indicator" style="display: none;">LEAD</span>
             </div>
-            <span class="user-role-badge" id="header-user-role">Team Lead</span>
+            <span class="user-role-badge" id="header-user-role">Workspace Member</span>
           </div>
           <svg class="chip-dropdown-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
         </div>
@@ -170,13 +172,26 @@
         <div class="sidebar-divider" id="sidebar-admin-divider" style="display: none;"></div>
         <div class="sidebar-section" id="sidebar-admin-section" style="display: none;"></div>
 
-        <!-- Role Context Box -->
-        <div class="sidebar-bottom-card" id="sidebar-role-card">
-          <div class="cost-target-label">
-            <span class="cost-pill" id="sidebar-role-indicator">Member</span>
-            <span class="health-indicator"><span class="status-dot"></span> Online</span>
+        <!-- User Profile Card in Sidebar Bottom (Replaces static role box) -->
+        <div class="sidebar-user-card" id="sidebar-user-profile" title="Account settings and persona switcher" role="button" tabindex="0" aria-haspopup="true">
+          <div class="sidebar-avatar-wrap">
+            <div class="user-avatar" id="sidebar-user-avatar">--</div>
+            <span class="user-status-dot online"></span>
           </div>
-          <p class="cost-target-desc" id="sidebar-role-desc">Frontier AI project workspace.</p>
+          <div class="sidebar-user-info">
+            <div class="sidebar-user-name-row">
+              <span class="sidebar-user-name" id="sidebar-user-name">Loading...</span>
+              <span class="host-pill-tag" id="sidebar-host-indicator" style="display: none;">LEAD</span>
+            </div>
+            <span class="sidebar-user-role" id="sidebar-user-role">Workspace Member</span>
+          </div>
+          <div class="sidebar-user-more-btn" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="1.5"></circle>
+              <circle cx="12" cy="5" r="1.5"></circle>
+              <circle cx="12" cy="19" r="1.5"></circle>
+            </svg>
+          </div>
         </div>
       </aside>
 
