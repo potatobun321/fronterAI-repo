@@ -1,0 +1,90 @@
+:root {
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg-canvas: #f5f7fa;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #f0f3f8;
+  --bg-surface-hover: #e8edf5;
+  --border-subtle: #e0e5ec;
+  --border-default: #c6ced9;
+  --border-active: #0b57d0;
+  --text-primary: #202124;
+  --text-secondary: #41464d;
+  --text-muted: #646b75;
+  --text-inverse: #ffffff;
+  --google-blue: #0b57d0;
+  --google-blue-container: #d3e3fd;
+  --google-blue-text: #0842a0;
+  --google-green: #146c2e;
+  --google-green-container: #c4eed0;
+  --google-green-text: #0d5223;
+  --google-amber: #8a4b00;
+  --google-amber-container: #ffdf99;
+  --google-amber-text: #633c00;
+  --google-red: #b3261e;
+  --google-red-container: #f9dedc;
+  --google-red-text: #8c1d18;
+  --google-purple: #6750a4;
+  --google-purple-container: #eaddff;
+  --google-purple-text: #4f378b;
+}
+
+:root[data-theme="light"] body {
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+}
+
+:root[data-theme-transition] body,
+:root[data-theme-transition] body * {
+  transition: background-color 220ms ease, color 220ms ease,
+    border-color 220ms ease, box-shadow 220ms ease, fill 220ms ease,
+    stroke 220ms ease !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme-transition] body,
+  :root[data-theme-transition] body * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.theme-toggle-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border-default);
+  border-radius: 50%;
+  background: var(--bg-surface-elevated);
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--google-blue);
+  color: var(--google-blue);
+}
+
+.theme-toggle-btn:focus-visible {
+  outline: 2px solid var(--google-blue);
+  outline-offset: 3px;
+}
+
+.theme-icon-moon,
+:root[data-theme="light"] .theme-icon-sun {
+  display: none;
+}
+
+:root[data-theme="light"] .theme-icon-moon {
+  display: block;
+}
