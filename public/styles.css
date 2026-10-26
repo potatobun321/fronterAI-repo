@@ -4316,6 +4316,10 @@ button:active:not(:disabled),
   line-height: 1;
 }
 
+.palette-esc-btn::before {
+  content: "ESC";
+}
+
 .palette-esc-btn:hover, .palette-esc-kbd:hover {
   background: rgba(255, 255, 255, 0.18);
   color: #fff;
@@ -5447,7 +5451,6 @@ button:active:not(:disabled),
   border-radius: 4px;
   color: var(--text-secondary);
 }
-
 
 
 
