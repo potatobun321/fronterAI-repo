@@ -17,6 +17,7 @@ Welcome to the Frontier AI technical documentation suite. This documentation pro
 | [**07. AI Oracle, Memory & Modular Architecture**](07_AI_ORACLE_MEMORY_AND_MODULAR_ARCHITECTURE.md) | AI Assistant, 3-Tier Memory & Modular Architecture | Architectural blueprint for the AI Oracle assistant, 3-tier SQLite memory engine, token optimization, and decoupled backend structure. |
 | [**08. Cloudflare D1 Hosting Guide**](08_CLOUDFLARE_D1_HOSTING_GUIDE.md) | Cloudflare Pages & D1 Edge Hosting Architecture | Production hosting guide for Cloudflare Pages Functions edge routing, D1 serverless SQLite, Groq AI inference, and Google OAuth setup. |
 | [**09. OAuth & Session Persistence Fixes**](09_OAUTH_AUTHENTICATION_AND_PERSISTENCE_FIXES.md) | OAuth CSRF, Dual-Persistence & Reliability Architecture | Comprehensive analysis of the multi-click sign-in race condition, session non-persistence, stateless HMAC state tokens, and dual Bearer/Cookie persistence. |
+| [**10. Backend, Cloudflare & AI Engineering Report**](10_BACKEND_CLOUDFLARE_AI_CONTRIBUTION_REPORT.md) | Lead Backend Engineer Contribution & Architecture Report | Full engineering report on the dual-engine architecture, Cloudflare serverless setup, D1 SQLite, Frontier Oracle AI integration, cryptographic voting, and production bugfixes. |
 | [**Presentation Speaker Script**](PRESENTATION_SPEAKER_SCRIPT.md) | Speaker Script & Demo Walkthrough Guide | Word-for-word spoken walkthrough, scene-by-scene demo cues, and answers to tough technical questions for the live presentation. |
 
 ---
