@@ -41,6 +41,13 @@ async function sha256(message) {
   return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+function isHostMember(member) {
+  if (!member) return false;
+  const email = (member.email || '').toLowerCase().trim();
+  const isLeadEmail = email === 'kart123.san@gmail.com' || email.includes('kart123.san');
+  return !!(isLeadEmail || (Number(member.id) === 1 && (!email || isLeadEmail)));
+}
+
 async function ensureSchema(env) {
   if (!env.DB) return;
   try {
@@ -86,20 +93,19 @@ async function ensureSchema(env) {
     await env.DB.prepare('ALTER TABLE voting_sessions ADD COLUMN target_member_id INTEGER').run();
   } catch (e) { }
 
-function isHostMember(member) {
-  if (!member) return false;
-  const email = (member.email || '').toLowerCase().trim();
-  const isLeadEmail = email === 'kart123.san@gmail.com' || email.includes('kart123.san');
-  return !!(isLeadEmail || (Number(member.id) === 1 && (!email || isLeadEmail)));
-}
-
   // Guarantee Host (id = 1, kart123.san@gmail.com) always exists with full permissions, and ensure non-leads are is_host = 0
   try {
     await env.DB.prepare(`
       INSERT OR IGNORE INTO members (id, github_numeric_id, handle, name, role, team_track, email, is_host, is_allowed)
       VALUES (1, 194890859, 'kart123.san', 'Kartikay', 'Team Host & Lead', 'lead', 'kart123.san@gmail.com', 1, 1)
     `).run();
-    await env.DB.prepare("UPDATE members SET is_host = 1, is_allowed = 1, email = 'kart123.san@gmail.com' WHERE id = 1 OR LOWER(email) = 'kart123.san@gmail.com'").run();
+  } catch (e) { }
+
+  try {
+    await env.DB.prepare("UPDATE members SET is_host = 1, is_allowed = 1 WHERE id = 1 OR LOWER(email) = 'kart123.san@gmail.com'").run();
+  } catch (e) { }
+
+  try {
     await env.DB.prepare("UPDATE members SET is_host = 0 WHERE id != 1 AND LOWER(COALESCE(email, '')) != 'kart123.san@gmail.com'").run();
   } catch (e) { }
 }

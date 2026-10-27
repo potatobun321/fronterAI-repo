@@ -953,7 +953,9 @@ function applyRolePermissions() {
 
 async function loadCurrentAuth() {
   try {
-    const res = await fetch('/api/auth/current');
+    const token = localStorage.getItem('frontier_session');
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const res = await fetch('/api/auth/current', { headers });
     if (res.ok) {
       const data = await res.json();
       state.currentUser = data.user || data.member || null;
