@@ -8,6 +8,7 @@ A full-stack, internal engineering workspace built around a disciplined **Google
 
 Comprehensive technical and architectural documentation is available in the [`docs/`](docs/) directory:
 
+- [**Lead Backend Engineer & Architecture Report**](MY_WORK_AND_SYSTEM_ARCHITECTURE.md) — Comprehensive technical report detailing all backend engineering, Cloudflare serverless setup, Frontier Oracle AI, cryptographic voting, and production bugfixes.
 - [**Handover Blueprint & Architecture Guide**](docs/HANDOVER_GUIDE.md) — Comprehensive guide for frontend & backend engineers explaining data flows, token optimization, and HMAC cryptographic state.
 - [**01. Architecture Overview**](docs/01_ARCHITECTURE_OVERVIEW.md) — System topology, ₹0 budget constraints, and the zero npm dependencies mandate.
 - [**02. Authentication & Security**](docs/02_AUTHENTICATION_SECURITY.md) — Google OAuth 2.0, immutable numeric ID allowlists, and persistent SQLite sessions.

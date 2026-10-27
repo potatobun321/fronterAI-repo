@@ -525,11 +525,39 @@ export async function onRequest(context) {
         return jsonResponse({ error: 'Host account cannot be removed or declined.' }, 400);
       }
       try {
-        await env.DB.prepare('DELETE FROM sessions WHERE member_id = ?').bind(targetId).run();
-      } catch (e) { }
-      await env.DB.prepare('DELETE FROM members WHERE id = ?').bind(targetId).run();
-      await logAudit(env, member.handle, 'MEMBER_REJECTED', 'members', `Rejected access request for member #${targetId}`);
-      return jsonResponse({ success: true, message: 'Access request rejected' });
+        // Complete cascade purge in strict dependency order:
+        // 1. Sessions
+        await env.DB.prepare('DELETE FROM sessions WHERE member_id = ?').bind(targetId).run().catch(() => {});
+        // 2. AI Messages & Threads
+        await env.DB.prepare('DELETE FROM ai_messages WHERE thread_id IN (SELECT id FROM ai_threads WHERE member_id = ?)').bind(targetId).run().catch(() => {});
+        await env.DB.prepare('DELETE FROM ai_threads WHERE member_id = ?').bind(targetId).run().catch(() => {});
+        // 3. Member Memories
+        await env.DB.prepare('DELETE FROM member_memories WHERE member_id = ?').bind(targetId).run().catch(() => {});
+        // 4. Voting & Ballots (Crucial: Ballots reference voting_options)
+        await env.DB.prepare('DELETE FROM ballots WHERE option_id IN (SELECT id FROM voting_options WHERE candidate_member_id = ?)').bind(targetId).run().catch(() => {});
+        await env.DB.prepare('UPDATE ballots SET candidate_member_id = NULL WHERE candidate_member_id = ?').bind(targetId).run().catch(() => {});
+        await env.DB.prepare('DELETE FROM voting_options WHERE candidate_member_id = ?').bind(targetId).run().catch(() => {});
+        await env.DB.prepare('DELETE FROM voting_eligibility WHERE member_id = ?').bind(targetId).run().catch(() => {});
+        await env.DB.prepare('UPDATE voting_sessions SET target_member_id = NULL WHERE target_member_id = ?').bind(targetId).run().catch(() => {});
+        await env.DB.prepare('UPDATE voting_sessions SET created_by = 1 WHERE created_by = ?').bind(targetId).run().catch(() => {});
+        // 5. Tasks (Detach assignee)
+        await env.DB.prepare('UPDATE tasks SET assignee_id = NULL WHERE assignee_id = ?').bind(targetId).run().catch(() => {});
+        // 6. Calendar Events (Detach assignee, reassign creator to Host)
+        await env.DB.prepare('UPDATE calendar_events SET assignee_id = NULL WHERE assignee_id = ?').bind(targetId).run().catch(() => {});
+        await env.DB.prepare('UPDATE calendar_events SET created_by = 1 WHERE created_by = ?').bind(targetId).run().catch(() => {});
+        // 7. Tasklets
+        await env.DB.prepare('DELETE FROM tasklets WHERE sender_id = ? OR receiver_id = ?').bind(targetId, targetId).run().catch(() => {});
+        // 8. Access Tickets
+        await env.DB.prepare('DELETE FROM access_tickets WHERE requester_id = ? OR approver_id = ?').bind(targetId, targetId).run().catch(() => {});
+        // 9. Completely purge member from database
+        await env.DB.prepare('DELETE FROM members WHERE id = ?').bind(targetId).run();
+
+        await logAudit(env, member.handle, 'MEMBER_REJECTED', 'members', `Permanently purged access request for member #${targetId}`);
+        return jsonResponse({ success: true, message: 'Access request permanently rejected' });
+      } catch (err) {
+        console.error('Failed to purge member:', err);
+        return jsonResponse({ error: `Database purge failed: ${err.message}` }, 500);
+      }
     }
 
     if (pathname === '/api/members' && method === 'POST') {
@@ -546,10 +574,44 @@ export async function onRequest(context) {
     if (pathname.startsWith('/api/members/') && method === 'DELETE') {
       const member = await getAuthMember(request, env);
       if (!member || !member.is_host) return jsonResponse({ error: 'Only Team Lead can remove members' }, 403);
-      const targetId = pathname.split('/')[3];
-      await env.DB.prepare('UPDATE members SET is_allowed = 0 WHERE id = ?').bind(targetId).run();
-      await logAudit(env, member.handle, 'MEMBER_REMOVE', 'members', `Revoked access for member #${targetId}`);
-      return jsonResponse({ success: true });
+      const targetId = parseInt(pathname.split('/')[3], 10);
+      if (targetId === 1 || targetId === member.id) {
+        return jsonResponse({ error: 'Host account cannot be removed.' }, 400);
+      }
+      try {
+        // Complete cascade purge in strict dependency order:
+        // 1. Sessions
+        await env.DB.prepare('DELETE FROM sessions WHERE member_id = ?').bind(targetId).run().catch(() => {});
+        // 2. AI Messages & Threads
+        await env.DB.prepare('DELETE FROM ai_messages WHERE thread_id IN (SELECT id FROM ai_threads WHERE member_id = ?)').bind(targetId).run().catch(() => {});
+        await env.DB.prepare('DELETE FROM ai_threads WHERE member_id = ?').bind(targetId).run().catch(() => {});
+        // 3. Member Memories
+        await env.DB.prepare('DELETE FROM member_memories WHERE member_id = ?').bind(targetId).run().catch(() => {});
+        // 4. Voting & Ballots (Crucial: Ballots reference voting_options)
+        await env.DB.prepare('DELETE FROM ballots WHERE option_id IN (SELECT id FROM voting_options WHERE candidate_member_id = ?)').bind(targetId).run().catch(() => {});
+        await env.DB.prepare('UPDATE ballots SET candidate_member_id = NULL WHERE candidate_member_id = ?').bind(targetId).run().catch(() => {});
+        await env.DB.prepare('DELETE FROM voting_options WHERE candidate_member_id = ?').bind(targetId).run().catch(() => {});
+        await env.DB.prepare('DELETE FROM voting_eligibility WHERE member_id = ?').bind(targetId).run().catch(() => {});
+        await env.DB.prepare('UPDATE voting_sessions SET target_member_id = NULL WHERE target_member_id = ?').bind(targetId).run().catch(() => {});
+        await env.DB.prepare('UPDATE voting_sessions SET created_by = 1 WHERE created_by = ?').bind(targetId).run().catch(() => {});
+        // 5. Tasks (Detach assignee)
+        await env.DB.prepare('UPDATE tasks SET assignee_id = NULL WHERE assignee_id = ?').bind(targetId).run().catch(() => {});
+        // 6. Calendar Events (Detach assignee, reassign creator to Host)
+        await env.DB.prepare('UPDATE calendar_events SET assignee_id = NULL WHERE assignee_id = ?').bind(targetId).run().catch(() => {});
+        await env.DB.prepare('UPDATE calendar_events SET created_by = 1 WHERE created_by = ?').bind(targetId).run().catch(() => {});
+        // 7. Tasklets
+        await env.DB.prepare('DELETE FROM tasklets WHERE sender_id = ? OR receiver_id = ?').bind(targetId, targetId).run().catch(() => {});
+        // 8. Access Tickets
+        await env.DB.prepare('DELETE FROM access_tickets WHERE requester_id = ? OR approver_id = ?').bind(targetId, targetId).run().catch(() => {});
+        // 9. Completely purge member from database
+        await env.DB.prepare('DELETE FROM members WHERE id = ?').bind(targetId).run();
+
+        await logAudit(env, member.handle, 'MEMBER_REMOVE', 'members', `Permanently removed member #${targetId}`);
+        return jsonResponse({ success: true, message: 'Member permanently removed' });
+      } catch (err) {
+        console.error('Failed to remove member:', err);
+        return jsonResponse({ error: `Database purge failed: ${err.message}` }, 500);
+      }
     }
 
     // --------------------------------------------------------------------------
