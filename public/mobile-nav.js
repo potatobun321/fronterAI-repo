@@ -45,20 +45,29 @@
 
     const tabs = bottomNav.querySelectorAll('.mobile-bottom-tab');
     tabs.forEach(tab => {
-      tab.addEventListener('click', (e) => {
-        e.preventDefault();
+      const handleTabSelection = (e) => {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
         const viewId = tab.dataset.view;
         if (!viewId) return;
 
-        // Find corresponding sidebar item
-        const origSidebarBtn = document.querySelector(`#sidebar .nav-item[data-view="${viewId}"]`);
-        if (origSidebarBtn) {
-          origSidebarBtn.click();
+        // Directly invoke switchView for immediate, robust responsiveness on touch devices
+        if (typeof window.switchView === 'function') {
+          window.switchView(viewId);
+        } else {
+          const origSidebarBtn = document.querySelector(`#sidebar .nav-item[data-view="${viewId}"]`);
+          if (origSidebarBtn) {
+            origSidebarBtn.click();
+          }
         }
 
         // Highlight immediately for instantaneous UI feedback
         tabs.forEach(t => t.classList.toggle('active', t === tab));
-      });
+      };
+
+      tab.addEventListener('click', handleTabSelection);
     });
   }
 
@@ -69,9 +78,10 @@
   function syncState() {
     if (!bottomNav) return;
 
-    // 1. Sync Active View Highlight
+    // 1. Sync Active View Highlight (canonical workspace-view first, then sidebar, then session storage)
+    const activeWorkspaceView = document.querySelector('.workspace-view.active');
     const activeSidebarBtn = document.querySelector('#sidebar .nav-item.active');
-    const activeViewId = activeSidebarBtn ? activeSidebarBtn.dataset.view : 'view-tasks';
+    const activeViewId = activeWorkspaceView?.id || (activeSidebarBtn ? activeSidebarBtn.dataset.view : null) || sessionStorage.getItem('frontier_active_view') || 'view-tasks';
 
     const tabs = bottomNav.querySelectorAll('.mobile-bottom-tab');
     tabs.forEach(tab => {
@@ -83,8 +93,9 @@
     // 2. Sync Admin (Settings & Logs) Tab Visibility (Host-only)
     const adminTab = document.getElementById('mob-tab-admin');
     const directSettingsBtn = document.getElementById('nav-item-direct-settings');
+    const isHostAdmin = document.body.classList.contains('is-admin-host');
     if (adminTab) {
-      const isHostVisible = directSettingsBtn && directSettingsBtn.style.display !== 'none';
+      const isHostVisible = isHostAdmin && directSettingsBtn && directSettingsBtn.style.display !== 'none';
       adminTab.style.display = isHostVisible ? 'flex' : 'none';
     }
 

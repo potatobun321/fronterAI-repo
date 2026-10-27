@@ -2704,6 +2704,19 @@ button:active:not(:disabled),
   display: none !important;
 }
 
+/* --- Strict Host/Admin-Only Control Shielding --- */
+body:not(.is-admin-host) #btn-open-launch-voting,
+body:not(.is-admin-host) #btn-idle-launch-voting,
+body:not(.is-admin-host) #btn-closed-new-round,
+body:not(.is-admin-host) #btn-closed-reopen-round,
+body:not(.is-admin-host) #btn-host-close-voting,
+body:not(.is-admin-host) #btn-host-reopen-voting,
+body:not(.is-admin-host) .host-only-control {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 /* --- Fluid Toggle & Switching Content Animations --- */
 @keyframes toggleContentFadeSlide {
   0% {

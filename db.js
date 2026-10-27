@@ -265,9 +265,9 @@ export function seedData() {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  // Sole authorized member: Kartikay (@potatobun321) as Team Host & Lead
+  // Sole authorized member: Kartikay (kart123.san@gmail.com) as Team Host & Lead
   const members = [
-    [1, 194890859, 'potatobun321', 'Kartikay', 'Team Host & Lead', 'lead', 1, 1]
+    [1, 194890859, 'kart123.san', 'Kartikay', 'Team Host & Lead', 'lead', 1, 1]
   ];
 
   for (const m of members) {
@@ -341,7 +341,7 @@ export function seedData() {
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(
     new Date().toISOString(),
-    'potatobun321',
+    'kart123.san',
     'INIT_PLATFORM',
     'governance',
     'Frontier AI Platform initialized with clean slate and AI memory. Kartikay designated as Team Host & Lead.',

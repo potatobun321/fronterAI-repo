@@ -3,6 +3,13 @@ import { getSessionUser } from '../middleware/session.js';
 import { parseBody, sendJson } from '../middleware/httpHelpers.js';
 import { generateBallotToken, verifyBallotToken } from '../services/ballotCrypto.js';
 
+function isHostUser(u) {
+  if (!u) return false;
+  const email = (u.email || '').toLowerCase().trim();
+  const isLeadEmail = email === 'kart123.san@gmail.com' || email.includes('kart123.san');
+  return !!(isLeadEmail || (Number(u.id) === 1 && (!email || isLeadEmail)));
+}
+
 export async function handleVotingRoutes(req, res, pathname, method, urlObj) {
   if (pathname === '/api/voting/current' && method === 'GET') {
     const currentUser = getSessionUser(req);
@@ -30,7 +37,7 @@ export async function handleVotingRoutes(req, res, pathname, method, urlObj) {
         totalBallots: 0,
         totalEligible: 0,
         isRevealed: false,
-        isHost: !!(currentUser && currentUser.is_host),
+        isHost: isHostUser(currentUser),
         tally: []
       });
     }
@@ -149,7 +156,7 @@ export async function handleVotingRoutes(req, res, pathname, method, urlObj) {
       totalBallots,
       totalEligible,
       isRevealed,
-      isHost: !!(currentUser && currentUser.is_host),
+      isHost: isHostUser(currentUser),
       tally
     });
   }
@@ -157,8 +164,7 @@ export async function handleVotingRoutes(req, res, pathname, method, urlObj) {
   // Create & Launch a Voting / Review Session (Host only)
   if (pathname === '/api/voting/create' && method === 'POST') {
     const currentUser = getSessionUser(req);
-    const isHostUser = currentUser && currentUser.is_host && (currentUser.id === 1 || currentUser.handle === 'potatobun321');
-    if (!isHostUser) {
+    if (!isHostUser(currentUser)) {
       return sendJson(res, 403, { error: 'Permission Denied: Only the Team Host (Admin) can launch a review session.' });
     }
 
@@ -334,8 +340,7 @@ export async function handleVotingRoutes(req, res, pathname, method, urlObj) {
 
   if (pathname === '/api/voting/close' && method === 'POST') {
     const currentUser = getSessionUser(req);
-    const isHostUser = currentUser && currentUser.is_host && (currentUser.id === 1 || currentUser.handle === 'potatobun321');
-    if (!isHostUser) {
+    if (!isHostUser(currentUser)) {
       return sendJson(res, 403, { error: 'Permission Denied: Only the Team Host (Admin) can close a voting session.' });
     }
 
@@ -350,8 +355,7 @@ export async function handleVotingRoutes(req, res, pathname, method, urlObj) {
 
   if (pathname === '/api/voting/reopen' && method === 'POST') {
     const currentUser = getSessionUser(req);
-    const isHostUser = currentUser && currentUser.is_host && (currentUser.id === 1 || currentUser.handle === 'potatobun321');
-    if (!isHostUser) {
+    if (!isHostUser(currentUser)) {
       return sendJson(res, 403, { error: 'Permission Denied: Only the Team Host (Admin) can reopen a voting session.' });
     }
 
