@@ -3717,23 +3717,24 @@ button:active:not(:disabled),
   background-color: rgba(242, 184, 181, 0.15);
 }
 
-/* Peer Tasklets */
+/* Peer Tasklets & Feedback Cards */
 .tasklets-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .tasklet-card {
   background-color: var(--bg-canvas);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  transition: border-color 0.15s ease;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  word-break: break-word;
 }
 
 .tasklet-card:hover {
@@ -4314,6 +4315,10 @@ button:active:not(:disabled),
   outline: none;
   transition: all 0.15s ease;
   line-height: 1;
+}
+
+.palette-esc-btn::before {
+  content: "ESC";
 }
 
 .palette-esc-btn:hover, .palette-esc-kbd:hover {
@@ -5447,7 +5452,6 @@ button:active:not(:disabled),
   border-radius: 4px;
   color: var(--text-secondary);
 }
-
 
 
 

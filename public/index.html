@@ -7,9 +7,15 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script>
+    document.documentElement.dataset.theme =
+      localStorage.getItem('frontier-theme') === 'light' ? 'light' : 'dark';
+  </script>
   <link rel="stylesheet" href="styles.css?v=2.0.3">
-  <link rel="stylesheet" href="mobile-nav.css?v=2.0.3">
+  <link rel="stylesheet" href="mobile-nav.css?v=2.0.6">
   <link rel="stylesheet" href="oracle-panel.css?v=2.0.3">
+  <link rel="stylesheet" href="theme.css?v=1.0.1">
+  <script src="theme-toggle.js?v=1.0.1"></script>
   <script>
     // Immediate session check to eliminate FOUC / flickering
     if (localStorage.getItem('frontier_session')) {
@@ -92,7 +98,7 @@
       <div class="header-center">
         <div class="search-box">
           <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-          <input type="text" id="global-search-input" placeholder="Search tasks, meetings, voting, or team directory (Ctrl+K)...">
+          <input type="text" id="global-search-input" placeholder="Search workspace..." aria-label="Search tasks, meetings, voting, and team directory">
           <span class="search-kbd">Ctrl+K</span>
         </div>
       </div>
@@ -103,6 +109,15 @@
         <button id="btn-oracle-topbar" class="oracle-topbar-btn" title="Frontier Oracle" data-tooltip="Frontier Oracle" aria-label="Frontier Oracle" aria-expanded="false" aria-controls="oracle-side-panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+          </svg>
+        </button>
+        <button id="btn-theme-toggle" class="theme-toggle-btn" type="button" aria-label="Switch to light theme" title="Switch to light theme">
+          <svg class="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="4"></circle>
+            <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"></path>
+          </svg>
+          <svg class="theme-icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z"></path>
           </svg>
         </button>
 
@@ -566,30 +581,30 @@
         </section>
 
         <!-- ======================================================== -->
-        <!-- MODULE 4: MULTIPURPOSE PEERS: MICRO-TASKS & PEER FEEDBACK -->
+        <!-- MODULE 4: MULTIPURPOSE PEERS: TASKLETS & PEER FEEDBACK -->
         <!-- ======================================================== -->
         <section id="view-peers" class="workspace-view">
           <div class="view-header">
             <div>
               <h2 class="view-title">Team &amp; Peers</h2>
-              <p class="view-subtitle">Coordinate micro-tasks, exchange peer recognition, and browse the team directory</p>
+              <p class="view-subtitle">Coordinate tasklets, exchange peer recognition, and browse the team directory</p>
             </div>
             <div class="header-action-group">
               <button class="btn btn-filled host-only-action" id="btn-open-onboard-peers" style="display: none;">+ Onboard Member</button>
             </div>
           </div>
 
-          <!-- Multipurpose Panel Navigation (Micro-Tasks vs Peer Feedback) -->
+          <!-- Multipurpose Panel Navigation (Tasklets vs Peer Feedback) -->
           <div class="card" style="margin-bottom: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
               <div class="segmented-control" id="peers-main-mode-toggle">
-                <button class="segmented-tab active" id="tab-mode-tasklets" data-mode="tasklets">Micro-Tasks (Tasklets)</button>
+                <button class="segmented-tab active" id="tab-mode-tasklets" data-mode="tasklets">Tasklets</button>
                 <button class="segmented-tab" id="tab-mode-feedback" data-mode="feedback">Peer Feedback</button>
               </div>
               <div style="font-size: 12px; color: var(--text-muted);" id="peers-panel-hint">Collaborative peer-to-peer exchange</div>
             </div>
 
-            <!-- SECTION A: MICRO-TASKS (TASKLETS) -->
+            <!-- SECTION A: TASKLETS -->
             <div id="section-peers-tasklets">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
                 <div class="segmented-control" id="tasklets-tab-group">
@@ -1509,11 +1524,22 @@
         <div class="form-field">
           <label for="voting-launch-type">Review Type</label>
           <select id="voting-launch-type" class="input-select" required>
-            <option value="PEER_PERFORMANCE" selected>Type 1: Anonymous Peer Performance Review (Evaluate Individual Teammates)</option>
-            <option value="PROJECT_QUALITY">Type 2: Project Quality &amp; Milestone Review (Evaluate Sprint Deliverables &amp; Stability)</option>
+            <option value="PEER_PERFORMANCE" selected>Type 1: Anonymous Peer Performance Review (Evaluate Individual Teammate)</option>
+            <option value="PROJECT_QUALITY">Type 2: Project Review (Team Experience &amp; Milestone Quality)</option>
           </select>
           <p class="form-hint" id="voting-type-hint" style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
-            Teammates rate each individual member across sprint velocity, architecture leadership, and peer support on a 1–5 scale.
+            Host selects a specific team member. The team and host then anonymously rate their sprint performance on a 1–5 scale.
+          </p>
+        </div>
+
+        <!-- Target Member Picker for Type 1 (Peer Performance) -->
+        <div class="form-field" id="wrap-launch-target-member">
+          <label for="voting-launch-target-member">Select Team Member to Review</label>
+          <select id="voting-launch-target-member" class="input-select">
+            <!-- Populated dynamically with active team members -->
+          </select>
+          <p class="form-hint" style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+            Teammates and host will anonymously rate this member out of 5 stars. Overall score reveals when the host closes the session.
           </p>
         </div>
 
@@ -1534,15 +1560,15 @@
 
         <!-- Pillar items for Type 2 (Project Quality) -->
         <div class="form-field hidden" id="group-launch-quality-pillars">
-          <label>Project Quality Evaluation Tracks</label>
+          <label>Project Review Evaluation Dimensions</label>
           <p class="form-hint" style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 6px;">
-            Options teammates will evaluate for this milestone:
+            Dimensions teammates will rate for this milestone and call:
           </p>
           <div style="display: flex; flex-direction: column; gap: 8px;">
-            <input type="text" class="input-text quality-pillar-input" value="Backend APIs &amp; Cloudflare Workers Architecture">
-            <input type="text" class="input-text quality-pillar-input" value="Frontend UI/UX &amp; Google Workspace Aesthetics">
-            <input type="text" class="input-text quality-pillar-input" value="Database Integrity, Migrations &amp; OCC Concurrency">
-            <input type="text" class="input-text quality-pillar-input" value="Sprint Deliverable Sign-Off &amp; Peer Collaboration">
+            <input type="text" class="input-text quality-pillar-input" value="Team Dynamic &amp; Working Collaboration">
+            <input type="text" class="input-text quality-pillar-input" value="Sprint Milestone Architecture &amp; Execution">
+            <input type="text" class="input-text quality-pillar-input" value="Code Quality &amp; Deliverable Reliability">
+            <input type="text" class="input-text quality-pillar-input" value="Overall Project Satisfaction &amp; Workflow">
           </div>
         </div>
 
@@ -1561,8 +1587,8 @@
         <div class="palette-search-icon-box">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
         </div>
-        <input type="text" id="palette-search-input" placeholder="Search tasks, teammates, views, or commands (/tasks, /call, /vote)..." autocomplete="off" spellcheck="false">
-        <button type="button" class="palette-esc-btn" id="btn-close-palette-esc" title="Press Escape to close" aria-label="Close command palette">ESC</button>
+        <input type="text" id="palette-search-input" placeholder="Search pages, tasks, and actions..." autocomplete="off" spellcheck="false" aria-label="Search pages, tasks, and actions">
+        <button type="button" class="palette-esc-btn" id="btn-close-palette-esc" title="Press Escape to close" aria-label="Close command palette"></button>
       </div>
       <div class="palette-results-list" id="palette-results-list">
         <!-- Populated dynamically with grouped categories -->
