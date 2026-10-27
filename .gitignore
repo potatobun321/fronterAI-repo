@@ -24,3 +24,10 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Authentication backend secrets and generated files
+authentication/.env
+authentication/node_modules/
+authentication/database/*.db
+authentication/database/*.db-shm
+authentication/database/*.db-wal
