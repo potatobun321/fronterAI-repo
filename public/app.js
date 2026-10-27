@@ -1768,10 +1768,39 @@ async function updateTaskWithOccCheck(taskId, payload, originalTask) {
 // -------------------------------------------------------------
 // VIEW 4: ANONYMOUS PEER PERFORMANCE VOTING
 // -------------------------------------------------------------
-async function loadVotingSession() {
+let votingSyncChannel = null;
+try {
+  if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+    votingSyncChannel = new BroadcastChannel('frontier_voting_sync');
+    votingSyncChannel.onmessage = async (event) => {
+      if (event.data && (event.data.type === 'VOTING_CHANGED' || event.data.type === 'VOTE_CAST')) {
+        await loadVotingSession();
+      }
+    };
+  }
+} catch (e) { }
+
+function notifyVotingChanged(type = 'VOTING_CHANGED') {
   try {
-    const sessionId = state.currentVotingSessionId || '';
-    const url = sessionId ? `/api/voting/current?session_id=${sessionId}` : '/api/voting/current';
+    if (votingSyncChannel) {
+      votingSyncChannel.postMessage({ type, timestamp: Date.now() });
+    }
+  } catch (e) { }
+}
+
+// Background auto-refresh for peer review in multi-device/multi-browser sessions
+if (typeof window !== 'undefined') {
+  setInterval(async () => {
+    const votingView = document.getElementById('view-voting');
+    if (votingView && !votingView.classList.contains('hidden') && document.visibilityState === 'visible') {
+      await loadVotingSession();
+    }
+  }, 3500);
+}
+
+async function loadVotingSession(forcedSessionId = null) {
+  try {
+    const url = forcedSessionId ? `/api/voting/current?session_id=${forcedSessionId}` : '/api/voting/current';
     const res = await fetch(url);
     const data = await res.json();
     state.votingSession = data;
@@ -1782,6 +1811,8 @@ async function loadVotingSession() {
       if (savedToken) {
         state.unlinkedBallotToken = savedToken;
       }
+    } else {
+      state.currentVotingSessionId = null;
     }
 
     renderVotingSession();
@@ -2327,7 +2358,7 @@ async function castAnonymousBallot(e) {
     const res = await fetch('/api/voting/cast', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: sessionId, candidate_id: candidateId, rating, token })
+      body: JSON.stringify({ session_id: sessionId, candidate_id: candidateId, option_id: candidateId, rating, token })
     });
 
     const data = await res.json();
@@ -2348,6 +2379,7 @@ async function castAnonymousBallot(e) {
 
     const candName = selected.dataset.candidateName || 'Item';
     showToast(`Anonymous evaluation of ${rating}/5.0 stars recorded for ${candName}.`);
+    notifyVotingChanged('VOTE_CAST');
     await loadVotingSession();
     await loadPersonalDashboard();
   } catch (err) {
@@ -2374,6 +2406,7 @@ async function hostCloseVotingSession() {
       return;
     }
     showToast('Review round closed! Final standings revealed.');
+    notifyVotingChanged('VOTING_CHANGED');
     await loadVotingSession();
     await loadPersonalDashboard();
   } catch (err) {
@@ -2400,6 +2433,7 @@ async function hostReopenVotingSession() {
       return;
     }
     showToast('Review session reopened for submissions!');
+    notifyVotingChanged('VOTING_CHANGED');
     await loadVotingSession();
     await loadPersonalDashboard();
   } catch (err) {
@@ -2450,6 +2484,7 @@ async function submitLaunchVotingSession(e) {
     document.getElementById('modal-launch-voting')?.close();
     showToast(`Review session "${title}" successfully launched!`);
     state.currentVotingSessionId = data.session_id;
+    notifyVotingChanged('VOTING_CHANGED');
     await loadVotingSession();
     await loadPersonalDashboard();
   } catch (err) {
