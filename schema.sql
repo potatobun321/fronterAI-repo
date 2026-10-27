@@ -69,7 +69,9 @@ CREATE TABLE IF NOT EXISTS voting_sessions (
   total_eligible INTEGER DEFAULT 8,
   created_by INTEGER NOT NULL,
   created_at TEXT NOT NULL,
-  closed_at TEXT
+  closed_at TEXT,
+  target_member_id INTEGER,
+  FOREIGN KEY (target_member_id) REFERENCES members (id)
 );
 
 -- 6. Voting Options (Candidates / Proposals)

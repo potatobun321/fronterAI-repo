@@ -212,6 +212,7 @@ export function initDatabase() {
   try { db.exec('ALTER TABLE tasklets ADD COLUMN is_anonymous INTEGER DEFAULT 0'); } catch (e) {}
   try { db.exec('ALTER TABLE members ADD COLUMN google_sub TEXT'); } catch (e) {}
   try { db.exec('ALTER TABLE members ADD COLUMN email TEXT'); } catch (e) {}
+  try { db.exec('ALTER TABLE voting_sessions ADD COLUMN target_member_id INTEGER'); } catch (e) {}
 
   // Ensure the 6 meeting slots exist
   const slotCount = db.prepare('SELECT COUNT(*) as count FROM meeting_slots').get();

@@ -1868,11 +1868,23 @@ function renderVotingSession() {
 
     const closedTitleEl = document.getElementById('closed-round-title');
     const closedDescEl = document.getElementById('closed-round-desc');
-    if (closedTitleEl) closedTitleEl.textContent = s.session.title || 'Sprint Standings & Aggregate Results';
-    if (closedDescEl) {
-      closedDescEl.textContent = s.session.description
-        ? `${s.session.description} — submissions concluded.`
-        : 'Submissions have concluded for this round. Final cryptographic ratings and rankings are listed below.';
+    if (s.targetMember) {
+      if (closedTitleEl) closedTitleEl.textContent = `Peer Performance Results: ${s.targetMember.name}`;
+      if (closedDescEl) {
+        closedDescEl.textContent = `Submissions concluded. Overall average performance rating for ${s.targetMember.name} (${s.targetMember.role}) is displayed below.`;
+      }
+    } else if (s.session.session_type === 'PROJECT_QUALITY') {
+      if (closedTitleEl) closedTitleEl.textContent = s.session.title || 'Project Review & Team Experience Results';
+      if (closedDescEl) {
+        closedDescEl.textContent = 'Submissions concluded. Overall project satisfaction and dimension ratings are displayed below.';
+      }
+    } else {
+      if (closedTitleEl) closedTitleEl.textContent = s.session.title || 'Sprint Standings & Aggregate Results';
+      if (closedDescEl) {
+        closedDescEl.textContent = s.session.description
+          ? `${s.session.description} — submissions concluded.`
+          : 'Submissions have concluded for this round. Final cryptographic ratings and rankings are listed below.';
+      }
     }
 
     renderTallyMeters(s.tally || [], s.candidates || s.options || [], 'closed-tally-bars-display');
@@ -1915,12 +1927,22 @@ function renderVotingSession() {
   if (headlineEl) headlineEl.textContent = s.session.title || 'Active Evaluation Round';
 
   const metricChipEl = document.getElementById('voting-active-metric-chip');
-  if (metricChipEl) metricChipEl.textContent = s.session.description || 'Sprint Contribution & Team Collaboration';
+  if (metricChipEl) {
+    if (s.targetMember) {
+      metricChipEl.textContent = `Reviewing: ${s.targetMember.name} (${s.targetMember.role})`;
+    } else {
+      metricChipEl.textContent = s.session.description || 'Sprint Contribution & Team Collaboration';
+    }
+  }
 
   if (subtitleEl) {
-    subtitleEl.textContent = s.session.description
-      ? `${s.session.description} — anonymous 1–5 star ratings.`
-      : 'Anonymous sprint contribution ratings (1–5 Stars). Cryptographically decoupled via HMAC blind tokens with zero identity linkage.';
+    if (s.targetMember) {
+      subtitleEl.textContent = `Anonymous 1–5 star peer evaluation for ${s.targetMember.name}. Cryptographically decoupled via HMAC blind tokens with zero identity linkage.`;
+    } else {
+      subtitleEl.textContent = s.session.description
+        ? `${s.session.description} — anonymous 1–5 star ratings.`
+        : 'Anonymous sprint contribution ratings (1–5 Stars). Cryptographically decoupled via HMAC blind tokens with zero identity linkage.';
+    }
   }
 
   const isQualityType = s.session.session_type === 'PROJECT_QUALITY';
@@ -1928,14 +1950,18 @@ function renderVotingSession() {
   const hintCandidateStep = document.getElementById('hint-select-candidate-step');
   const labelRatingStep = document.getElementById('label-rating-step');
 
-  if (labelCandidateStep) {
-    labelCandidateStep.textContent = isQualityType ? '1. Select Project Track to Evaluate' : '1. Select Teammate to Evaluate';
-  }
-  if (hintCandidateStep) {
-    hintCandidateStep.textContent = isQualityType ? 'Rate milestone deliverable quality, architecture integrity, and stability' : 'Pick any teammate to submit an anonymous 1–5 star rating';
-  }
-  if (labelRatingStep) {
-    labelRatingStep.textContent = isQualityType ? '2. Rate Track Quality & Milestone Stability' : '2. Rate Sprint Contribution & Collaboration';
+  if (s.targetMember) {
+    if (labelCandidateStep) labelCandidateStep.textContent = '1. Teammate Under Evaluation';
+    if (hintCandidateStep) hintCandidateStep.textContent = `Submit an anonymous 1–5 star rating for ${s.targetMember.name}'s sprint performance`;
+    if (labelRatingStep) labelRatingStep.textContent = '2. Rate Performance & Sprint Contribution';
+  } else if (isQualityType) {
+    if (labelCandidateStep) labelCandidateStep.textContent = '1. Select Project Review Dimension';
+    if (hintCandidateStep) hintCandidateStep.textContent = 'Rate team dynamic, milestone architecture, code quality, and working experience';
+    if (labelRatingStep) labelRatingStep.textContent = '2. Rate Project Experience & Quality';
+  } else {
+    if (labelCandidateStep) labelCandidateStep.textContent = '1. Select Teammate to Evaluate';
+    if (hintCandidateStep) hintCandidateStep.textContent = 'Pick any teammate to submit an anonymous 1–5 star rating';
+    if (labelRatingStep) labelRatingStep.textContent = '2. Rate Sprint Contribution & Collaboration';
   }
 
   const ballots = s.totalBallots || 0;
@@ -1986,74 +2012,122 @@ function renderVotingSession() {
   const submitBtn = document.getElementById('btn-submit-evaluation');
   if (choicesContainer) {
     choicesContainer.innerHTML = '';
-    const candidatesList = s.candidates || s.options || [];
 
-    let hasSelected = false;
-    let evaluableCount = 0;
-
-    candidatesList.forEach((cand, idx) => {
-      const candId = cand.id || cand.candidate_member_id;
-      const isSelf = (!isQualityType && state.currentUser && state.currentUser.id === candId);
-      if (!isSelf) evaluableCount++;
-
-      const candName = cand.name || cand.candidate_name || cand.label || (isQualityType ? 'Project Track' : 'Engineer');
-      const candRole = cand.role || cand.candidate_role || (isQualityType ? 'Milestone Pillar' : 'Developer');
-      const candTrack = cand.team_track || (isQualityType ? 'milestone' : 'general');
-      const initials = candName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || (isQualityType ? 'PT' : 'TM');
+    if (s.targetMember) {
+      // Single Target Member Peer Evaluation Mode
+      const isSelf = !!(state.currentUser && state.currentUser.id === s.targetMember.id);
+      const candName = s.targetMember.name;
+      const candRole = s.targetMember.role;
+      const candTrack = s.targetMember.team_track || 'General';
+      const initials = candName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'TM';
 
       const card = document.createElement('div');
-      const isDefaultSelected = !isSelf && !hasSelected;
-      if (isDefaultSelected) hasSelected = true;
-
-      card.className = `candidate-card-btn ${isSelf ? 'disabled' : ''} ${isDefaultSelected ? 'selected' : ''}`;
-      card.dataset.candidateId = candId;
+      card.className = `candidate-card-btn ${isSelf ? 'disabled' : 'selected'}`;
+      card.dataset.candidateId = s.targetMember.id;
       card.dataset.candidateName = candName;
       card.setAttribute('role', 'radio');
-      card.setAttribute('aria-checked', isDefaultSelected ? 'true' : 'false');
+      card.setAttribute('aria-checked', isSelf ? 'false' : 'true');
 
       card.innerHTML = `
         <div class="cand-avatar">${initials}</div>
         <div class="cand-info">
           <div class="cand-name-row">
             <span class="cand-name">${escapeHtml(candName)}</span>
-            ${isSelf ? '<span class="cand-badge-self">You (Self-eval excluded)</span>' : ''}
+            ${isSelf ? '<span class="cand-badge-self">You (Subject of this Review)</span>' : '<span class="cand-badge-self" style="background: rgba(52, 168, 83, 0.15); color: #81c995;">Teammate Under Evaluation</span>'}
           </div>
           <div class="cand-sub">${escapeHtml(candRole)} · Track: ${escapeHtml(candTrack.toUpperCase())}</div>
         </div>
-        <div class="cand-check-circle">${isDefaultSelected ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}</div>
+        <div class="cand-check-circle">${!isSelf ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}</div>
       `;
 
-      if (!isSelf) {
-        card.addEventListener('click', () => {
-          choicesContainer.querySelectorAll('.candidate-card-btn').forEach(c => {
-            c.classList.remove('selected');
-            c.setAttribute('aria-checked', 'false');
-            const check = c.querySelector('.cand-check-circle');
-            if (check) check.innerHTML = '';
-          });
-          card.classList.add('selected');
-          card.setAttribute('aria-checked', 'true');
-          const check = card.querySelector('.cand-check-circle');
-          if (check) check.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>';
-        });
-      }
-
       choicesContainer.appendChild(card);
-    });
 
-    if (evaluableCount === 0 && !isQualityType) {
-      const emptyNote = document.createElement('div');
-      emptyNote.style.cssText = 'grid-column: 1 / -1; padding: 14px 18px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px dashed var(--border-default); color: var(--text-secondary); font-size: 13px; text-align: center; margin-top: 8px;';
-      emptyNote.textContent = 'You are the only member registered in this workspace. Teammates must join before you can submit peer evaluations for them.';
-      choicesContainer.appendChild(emptyNote);
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.title = 'No other teammates available to evaluate';
+      if (isSelf) {
+        const selfNote = document.createElement('div');
+        selfNote.style.cssText = 'grid-column: 1 / -1; padding: 12px 16px; border-radius: 8px; background: rgba(66, 133, 244, 0.08); border: 1px solid rgba(66, 133, 244, 0.2); color: var(--text-primary); font-size: 13px; text-align: center; margin-top: 6px;';
+        selfNote.textContent = 'You are the subject of this peer review round. Your teammates and host are anonymously rating your sprint performance.';
+        choicesContainer.appendChild(selfNote);
+
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.title = 'You cannot evaluate yourself in your own peer review round.';
+        }
+      } else {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.title = '';
+        }
       }
     } else {
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.title = '';
+      // General or Project Review Mode
+      const candidatesList = s.candidates || s.options || [];
+      let hasSelected = false;
+      let evaluableCount = 0;
+
+      candidatesList.forEach((cand, idx) => {
+        const candId = cand.id || cand.candidate_member_id;
+        const isSelf = (!isQualityType && state.currentUser && state.currentUser.id === candId);
+        if (!isSelf) evaluableCount++;
+
+        const candName = cand.name || cand.candidate_name || cand.label || (isQualityType ? 'Project Dimension' : 'Engineer');
+        const candRole = cand.role || cand.candidate_role || (isQualityType ? 'Milestone Focus' : 'Developer');
+        const candTrack = cand.team_track || (isQualityType ? 'milestone' : 'general');
+        const initials = candName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || (isQualityType ? 'PR' : 'TM');
+
+        const card = document.createElement('div');
+        const isDefaultSelected = !isSelf && !hasSelected;
+        if (isDefaultSelected) hasSelected = true;
+
+        card.className = `candidate-card-btn ${isSelf ? 'disabled' : ''} ${isDefaultSelected ? 'selected' : ''}`;
+        card.dataset.candidateId = candId;
+        card.dataset.candidateName = candName;
+        card.setAttribute('role', 'radio');
+        card.setAttribute('aria-checked', isDefaultSelected ? 'true' : 'false');
+
+        card.innerHTML = `
+          <div class="cand-avatar">${initials}</div>
+          <div class="cand-info">
+            <div class="cand-name-row">
+              <span class="cand-name">${escapeHtml(candName)}</span>
+              ${isSelf ? '<span class="cand-badge-self">You (Self-eval excluded)</span>' : ''}
+            </div>
+            <div class="cand-sub">${escapeHtml(candRole)} · Track: ${escapeHtml(candTrack.toUpperCase())}</div>
+          </div>
+          <div class="cand-check-circle">${isDefaultSelected ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}</div>
+        `;
+
+        if (!isSelf) {
+          card.addEventListener('click', () => {
+            choicesContainer.querySelectorAll('.candidate-card-btn').forEach(c => {
+              c.classList.remove('selected');
+              c.setAttribute('aria-checked', 'false');
+              const check = c.querySelector('.cand-check-circle');
+              if (check) check.innerHTML = '';
+            });
+            card.classList.add('selected');
+            card.setAttribute('aria-checked', 'true');
+            const check = card.querySelector('.cand-check-circle');
+            if (check) check.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+          });
+        }
+
+        choicesContainer.appendChild(card);
+      });
+
+      if (evaluableCount === 0 && !isQualityType) {
+        const emptyNote = document.createElement('div');
+        emptyNote.style.cssText = 'grid-column: 1 / -1; padding: 14px 18px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px dashed var(--border-default); color: var(--text-secondary); font-size: 13px; text-align: center; margin-top: 8px;';
+        emptyNote.textContent = 'You are the only member registered in this workspace. Teammates must join before you can submit peer evaluations for them.';
+        choicesContainer.appendChild(emptyNote);
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.title = 'No other teammates available to evaluate';
+        }
+      } else {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.title = '';
+        }
       }
     }
   }
@@ -2344,11 +2418,15 @@ async function submitLaunchVotingSession(e) {
   const titleInput = document.getElementById('voting-launch-title');
   const metricInput = document.getElementById('voting-launch-metric');
   const descInput = document.getElementById('voting-launch-desc');
+  const targetSelect = document.getElementById('voting-launch-target-member');
 
   const session_type = typeSelect ? typeSelect.value : 'PEER_PERFORMANCE';
   const title = titleInput ? titleInput.value.trim() : '';
   const metric = metricInput ? metricInput.value.trim() : '';
   const description = descInput ? descInput.value.trim() : '';
+  const target_member_id = (session_type === 'PEER_PERFORMANCE' && targetSelect && targetSelect.value)
+    ? parseInt(targetSelect.value, 10)
+    : null;
 
   let options = [];
   if (session_type === 'PROJECT_QUALITY') {
@@ -2361,7 +2439,7 @@ async function submitLaunchVotingSession(e) {
     const res = await fetch('/api/voting/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_type, title, metric, description, options })
+      body: JSON.stringify({ session_type, title, metric, description, target_member_id, options })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -2383,11 +2461,25 @@ function initLaunchVotingModal() {
   const modal = document.getElementById('modal-launch-voting');
   const form = document.getElementById('form-launch-voting');
   const typeSelect = document.getElementById('voting-launch-type');
+  const targetMemberGroup = document.getElementById('wrap-launch-target-member');
+  const targetSelect = document.getElementById('voting-launch-target-member');
   const pillarsGroup = document.getElementById('group-launch-quality-pillars');
   const titleInput = document.getElementById('voting-launch-title');
   const metricInput = document.getElementById('voting-launch-metric');
   const descInput = document.getElementById('voting-launch-desc');
   const hintEl = document.getElementById('voting-type-hint');
+
+  function populateLaunchMembers() {
+    if (!targetSelect) return;
+    targetSelect.innerHTML = '';
+    const membersList = state.members || [];
+    membersList.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = `${m.name} (@${m.handle} · ${m.role})`;
+      targetSelect.appendChild(opt);
+    });
+  }
 
   const openBtns = [
     document.getElementById('btn-open-launch-voting'),
@@ -2399,6 +2491,7 @@ function initLaunchVotingModal() {
     btn?.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
+      populateLaunchMembers();
       if (modal && !modal.open) {
         modal.showModal();
       }
@@ -2432,17 +2525,19 @@ function initLaunchVotingModal() {
   if (typeSelect) {
     typeSelect.addEventListener('change', () => {
       if (typeSelect.value === 'PROJECT_QUALITY') {
+        if (targetMemberGroup) targetMemberGroup.classList.add('hidden');
         if (pillarsGroup) pillarsGroup.classList.remove('hidden');
-        if (titleInput) titleInput.value = 'Sprint 1 Project Quality & Milestone Review';
-        if (metricInput) metricInput.value = 'Code Quality, Architecture Integrity & Deliverable Stability';
-        if (descInput) descInput.value = 'Evaluate sprint deliverables, code quality, test coverage, and documentation stability across project tracks.';
-        if (hintEl) hintEl.textContent = 'Teammates evaluate milestone stability, API architecture, and sprint deliverable tracks on a 1–5 scale.';
+        if (titleInput) titleInput.value = 'Sprint 1 Project Review & Team Experience';
+        if (metricInput) metricInput.value = 'Team Dynamic, Working Collaboration & Deliverable Quality';
+        if (descInput) descInput.value = 'Rate overall project working experience, team collaboration, and milestone delivery.';
+        if (hintEl) hintEl.textContent = 'Host and teammates evaluate milestone stability, working experience, and team dynamic on a 1–5 scale.';
       } else {
+        if (targetMemberGroup) targetMemberGroup.classList.remove('hidden');
         if (pillarsGroup) pillarsGroup.classList.add('hidden');
-        if (titleInput) titleInput.value = 'Sprint 1 Peer Review & Contribution Standings';
+        if (titleInput) titleInput.value = 'Sprint Peer Performance Review';
         if (metricInput) metricInput.value = 'Sprint Contribution, Technical Reliability & Team Collaboration';
         if (descInput) descInput.value = 'Anonymous sprint contribution ratings (1–5 Stars). Cryptographically decoupled via HMAC blind tokens with zero identity linkage.';
-        if (hintEl) hintEl.textContent = 'Teammates rate each individual member across sprint velocity, architecture leadership, and peer support on a 1–5 scale.';
+        if (hintEl) hintEl.textContent = 'Host selects a specific team member. The team and host then anonymously rate their sprint performance on a 1–5 scale.';
       }
     });
   }
@@ -3372,9 +3467,15 @@ function setupModals() {
   });
 
   // Send Tasklet Modal
-  // Multipurpose Peers: Micro-Tasks & Feedback Modal Bindings
+  // Multipurpose Peers: Tasklets & Feedback Modal Bindings
   const taskletModal = document.getElementById('modal-send-tasklet');
   const feedbackModal = document.getElementById('modal-send-feedback');
+
+  // Close and Cancel buttons for Tasklet & Feedback Modals
+  document.getElementById('btn-close-tasklet-modal')?.addEventListener('click', () => taskletModal?.close());
+  document.getElementById('btn-cancel-send-tasklet')?.addEventListener('click', () => taskletModal?.close());
+  document.getElementById('btn-close-send-feedback-modal')?.addEventListener('click', () => feedbackModal?.close());
+  document.getElementById('btn-cancel-send-feedback')?.addEventListener('click', () => feedbackModal?.close());
 
   document.getElementById('btn-open-onboard-peers')?.addEventListener('click', () => {
     document.getElementById('modal-onboard-member')?.showModal();
@@ -3439,7 +3540,7 @@ function setupModals() {
     }
   });
 
-  // Main Mode Toggle (Micro-Tasks vs Peer Feedback)
+  // Main Mode Toggle (Tasklets vs Peer Feedback)
   document.querySelectorAll('#peers-main-mode-toggle button').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#peers-main-mode-toggle button').forEach(b => b.classList.remove('active'));
@@ -3454,7 +3555,7 @@ function setupModals() {
       if (mode === 'tasklets') {
         secTasklets?.classList.remove('hidden');
         secFeedback?.classList.add('hidden');
-        if (hintEl) hintEl.textContent = 'Informal peer-to-peer micro-tasks and review requests';
+        if (hintEl) hintEl.textContent = 'Informal peer-to-peer tasklets and review requests';
       } else {
         secTasklets?.classList.add('hidden');
         secFeedback?.classList.remove('hidden');
@@ -3474,7 +3575,7 @@ function setupModals() {
     });
   });
 
-  // Send Micro-Task Form Submit
+  // Send Tasklet Form Submit
   document.getElementById('form-send-tasklet')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const receiver_id = parseInt(document.getElementById('tasklet-receiver').value, 10);
@@ -3495,16 +3596,16 @@ function setupModals() {
 
       const data = await res.json();
       if (!res.ok) {
-        showToast(data.error || 'Failed to send micro-task', true);
+        showToast(data.error || 'Failed to send tasklet', true);
         return;
       }
 
-      showToast('Micro-task sent to teammate!');
+      showToast('Tasklet sent to teammate!');
       taskletModal?.close();
       document.getElementById('form-send-tasklet').reset();
       await loadTasklets();
     } catch (err) {
-      showToast('Error sending micro-task', true);
+      showToast('Error sending tasklet', true);
     }
   });
 
@@ -3628,7 +3729,7 @@ function renderTasklets() {
     if (taskList.length === 0) {
       targetContainer.innerHTML = `
         <div class="empty-state" style="padding: 24px 12px; text-align: center;">
-          <p style="color: var(--text-muted); font-size: 13px;">No ${isReceived ? 'received' : 'sent'} micro-tasks yet. Click "+ Send Micro-Task" to request a quick peer review or check.</p>
+          <p style="color: var(--text-muted); font-size: 13px;">No ${isReceived ? 'received' : 'sent'} tasklets yet. Click "+ Tasklet" on any teammate's card to request a quick peer review or check.</p>
         </div>
       `;
     } else {
@@ -3701,7 +3802,7 @@ function renderTasklets() {
     if (fbList.length === 0) {
       targetFbContainer.innerHTML = `
         <div class="empty-state" style="padding: 24px 12px; text-align: center;">
-          <p style="color: var(--text-muted); font-size: 13px;">No ${isFbReceived ? 'received' : 'shared'} feedback yet. Click "+ Share Feedback" to praise or support a teammate.</p>
+          <p style="color: var(--text-muted); font-size: 13px;">No ${isFbReceived ? 'received' : 'shared'} feedback yet. Click "+ Feedback" on any teammate's card to praise or support them.</p>
         </div>
       `;
     } else {
@@ -3742,13 +3843,13 @@ window.handleTaskletStatus = async function(id, status) {
     });
     const data = await res.json();
     if (!res.ok) {
-      showToast(data.error || 'Failed to update micro-task', true);
+      showToast(data.error || 'Failed to update tasklet', true);
       return;
     }
-    showToast(`Micro-task marked ${status.toLowerCase()}`);
+    showToast(`Tasklet marked ${status.toLowerCase()}`);
     await loadTasklets();
   } catch (err) {
-    showToast('Network error updating micro-task', true);
+    showToast('Network error updating tasklet', true);
   }
 };
 

@@ -693,3 +693,76 @@
     animation: none !important;
   }
 }
+
+/* ==========================================================================
+   5. TASKLETS & PEER FEEDBACK MOBILE RESPONSIVENESS
+   ========================================================================== */
+@media (max-width: 768px) {
+  .tasklets-list {
+    gap: 10px !important;
+  }
+
+  .tasklet-card {
+    padding: 12px 14px !important;
+    border-radius: 8px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  .tasklet-card p {
+    font-size: 13px !important;
+    line-height: 1.45 !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  #peers-main-mode-toggle,
+  #tasklets-tab-group,
+  #feedback-tab-group {
+    width: 100% !important;
+  }
+
+  #peers-main-mode-toggle .segmented-tab,
+  #tasklets-tab-group .segmented-tab,
+  #feedback-tab-group .segmented-tab {
+    flex: 1 !important;
+    text-align: center !important;
+    padding: 8px 10px !important;
+    font-size: 12.5px !important;
+  }
+
+  .team-card-actions {
+    display: flex !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .team-card-actions .btn {
+    flex: 1 !important;
+    text-align: center !important;
+  }
+
+  .modern-tasklet-dialog .dialog-box {
+    width: 95vw !important;
+    max-width: 95vw !important;
+    margin: auto !important;
+    padding: 16px !important;
+  }
+
+  .feedback-category-pills {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+
+  .feedback-cat-pill {
+    flex: 1 1 calc(50% - 6px) !important;
+    text-align: center !important;
+    padding: 6px 8px !important;
+    font-size: 12px !important;
+  }
+}
