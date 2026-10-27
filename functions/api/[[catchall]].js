@@ -82,6 +82,10 @@ async function ensureSchema(env) {
     await env.DB.prepare('ALTER TABLE tasklets ADD COLUMN is_anonymous INTEGER DEFAULT 0').run();
   } catch (e) { }
 
+  try {
+    await env.DB.prepare('ALTER TABLE voting_sessions ADD COLUMN target_member_id INTEGER').run();
+  } catch (e) { }
+
   // Guarantee Host (id = 1) always exists with full permissions
   try {
     await env.DB.prepare(`
@@ -706,14 +710,12 @@ export async function onRequest(context) {
     if ((pathname === '/api/voting/current' || pathname === '/api/voting/sessions') && method === 'GET') {
       const member = await getAuthMember(request, env);
 
-      // Auto-archive any legacy default seed session if present so default state is unhosted
-      await env.DB.prepare("UPDATE voting_sessions SET status = 'ARCHIVED' WHERE status = 'ACTIVE' AND (created_by <= 0 OR title = 'Sprint 1 Peer Review & Contribution Standings')").run();
-
       const requestedSessionId = url.searchParams.get('session_id');
       let session = null;
       if (requestedSessionId) {
         session = await env.DB.prepare('SELECT * FROM voting_sessions WHERE id = ?').bind(requestedSessionId).first();
-      } else {
+      }
+      if (!session) {
         // Priority 1: Check for active session
         session = await env.DB.prepare("SELECT * FROM voting_sessions WHERE status = 'ACTIVE' ORDER BY id DESC LIMIT 1").first();
       }
@@ -727,8 +729,8 @@ export async function onRequest(context) {
       const activeTarget = session || closedSession;
 
       // Allowlisted members
-      const membersRes = await env.DB.prepare('SELECT id, name, role, team_track, email FROM members WHERE is_allowed = 1 ORDER BY id ASC').all();
-      let candidates = membersRes.results || [];
+      const membersRes = await env.DB.prepare('SELECT id, name, role, team_track, email, handle FROM members WHERE is_allowed = 1 ORDER BY id ASC').all();
+      const allMembers = membersRes?.results || [];
 
       if (!activeTarget) {
         return jsonResponse({
@@ -736,26 +738,48 @@ export async function onRequest(context) {
           hasActiveSession: false,
           hasClosedSession: false,
           session: null,
-          candidates,
+          candidates: allMembers,
+          options: allMembers,
           totalBallots: 0,
-          totalEligible: candidates.length,
+          totalEligible: allMembers.length,
           isRevealed: false,
           isHost: !!(member && member.is_host),
           tally: null
         });
       }
 
-      // If Project Quality session, load options from voting_options
-      if (activeTarget.session_type === 'PROJECT_QUALITY') {
-        const optRes = await env.DB.prepare('SELECT id, label FROM voting_options WHERE session_id = ? ORDER BY id ASC').bind(activeTarget.id).all();
-        if (optRes?.results && optRes.results.length > 0) {
-          candidates = optRes.results.map(opt => ({
-            id: opt.id,
-            name: opt.label,
-            role: 'Sprint Deliverable Track',
-            team_track: 'milestone'
-          }));
+      let targetMember = null;
+      if (activeTarget.target_member_id) {
+        targetMember = allMembers.find(m => m.id === activeTarget.target_member_id) ||
+          await env.DB.prepare('SELECT id, name, role, team_track, email, handle FROM members WHERE id = ?').bind(activeTarget.target_member_id).first();
+      }
+
+      const isProjectReview = activeTarget.session_type === 'PROJECT_QUALITY' || activeTarget.session_type === 'PROJECT_EXPERIENCE';
+
+      let candidates = [];
+      if (isProjectReview) {
+        const optRes = await env.DB.prepare('SELECT id, session_id, candidate_member_id, label FROM voting_options WHERE session_id = ? ORDER BY id ASC').bind(activeTarget.id).all();
+        let options = optRes?.results || [];
+        if (options.length === 0) {
+          options = [
+            { id: 1, label: 'Team Dynamic & Working Collaboration' },
+            { id: 2, label: 'Sprint Milestone Architecture & Execution' },
+            { id: 3, label: 'Code Quality & Deliverable Reliability' },
+            { id: 4, label: 'Overall Project Satisfaction' }
+          ];
         }
+        candidates = options.map(opt => ({
+          id: opt.id,
+          candidate_id: opt.id,
+          name: opt.label,
+          label: opt.label,
+          role: 'Project Review Dimension',
+          team_track: 'milestone'
+        }));
+      } else if (targetMember) {
+        candidates = [targetMember];
+      } else {
+        candidates = allMembers;
       }
 
       const eligibility = member
@@ -764,14 +788,49 @@ export async function onRequest(context) {
 
       const ballotsCount = await env.DB.prepare('SELECT COUNT(*) as count FROM ballots WHERE session_id = ?').bind(activeTarget.id).first();
       const totalBallots = ballotsCount?.count || 0;
-      const totalEligible = candidates.length || activeTarget.total_eligible || 8;
+      const totalEligible = activeTarget.total_eligible || allMembers.length || 8;
       const isClosed = activeTarget.status === 'CLOSED';
       const isRevealed = isClosed || totalBallots >= totalEligible;
 
       let tally = null;
       if (isRevealed) {
-        tally = [];
-        for (const cand of candidates) {
+        if (isProjectReview) {
+          const overallStats = await env.DB.prepare('SELECT COUNT(*) as count, AVG(rating) as avg_rating FROM ballots WHERE session_id = ?').bind(activeTarget.id).first();
+          tally = [];
+          for (const cand of candidates) {
+            const stats = await env.DB.prepare(`
+              SELECT 
+                COUNT(*) as count,
+                AVG(rating) as avg_rating,
+                SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) as stars_5,
+                SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) as stars_4,
+                SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) as stars_3,
+                SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) as stars_2,
+                SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) as stars_1
+              FROM ballots 
+              WHERE session_id = ? AND (option_id = ? OR candidate_member_id = ?)
+            `).bind(activeTarget.id, cand.id, cand.id).first();
+
+            const cnt = stats?.count || (candidates.length === 1 ? overallStats?.count || 0 : 0);
+            const avg = stats?.count ? (Math.round((stats.avg_rating || 0) * 10) / 10) : (overallStats?.count ? (Math.round((overallStats.avg_rating || 0) * 10) / 10) : 0);
+
+            tally.push({
+              candidate_id: cand.id,
+              candidate_name: cand.name || cand.label,
+              candidate_role: 'Project Review Dimension',
+              team_track: 'milestone',
+              total_ratings: cnt,
+              avg_rating: avg,
+              breakdown: {
+                5: stats?.stars_5 || 0,
+                4: stats?.stars_4 || 0,
+                3: stats?.stars_3 || 0,
+                2: stats?.stars_2 || 0,
+                1: stats?.stars_1 || 0
+              }
+            });
+          }
+        } else if (targetMember) {
           const stats = await env.DB.prepare(`
             SELECT 
               COUNT(*) as count,
@@ -781,17 +840,17 @@ export async function onRequest(context) {
               SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) as stars_3,
               SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) as stars_2,
               SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) as stars_1
-            FROM ballots 
-            WHERE session_id = ? AND (candidate_member_id = ? OR option_id = ?)
-          `).bind(activeTarget.id, cand.id, cand.id).first();
+            FROM ballots WHERE session_id = ?
+          `).bind(activeTarget.id).first();
 
-          tally.push({
-            candidate_id: cand.id,
-            candidate_name: cand.name || cand.label,
-            candidate_role: cand.role || 'Sprint Deliverable',
-            team_track: cand.team_track || 'milestone',
+          const avgScore = stats?.count ? (Math.round((stats.avg_rating || 0) * 10) / 10) : 0;
+          tally = [{
+            candidate_id: targetMember.id,
+            candidate_name: targetMember.name,
+            candidate_role: targetMember.role,
+            team_track: targetMember.team_track,
             total_ratings: stats?.count || 0,
-            avg_rating: stats?.count ? (Math.round((stats.avg_rating || 0) * 10) / 10) : 0,
+            avg_rating: avgScore,
             breakdown: {
               5: stats?.stars_5 || 0,
               4: stats?.stars_4 || 0,
@@ -799,7 +858,39 @@ export async function onRequest(context) {
               2: stats?.stars_2 || 0,
               1: stats?.stars_1 || 0
             }
-          });
+          }];
+        } else {
+          tally = [];
+          for (const cand of candidates) {
+            const stats = await env.DB.prepare(`
+              SELECT 
+                COUNT(*) as count,
+                AVG(rating) as avg_rating,
+                SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) as stars_5,
+                SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) as stars_4,
+                SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) as stars_3,
+                SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) as stars_2,
+                SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) as stars_1
+              FROM ballots 
+              WHERE session_id = ? AND (candidate_member_id = ? OR option_id = ?)
+            `).bind(activeTarget.id, cand.id, cand.id).first();
+
+            tally.push({
+              candidate_id: cand.id,
+              candidate_name: cand.name || cand.label,
+              candidate_role: cand.role || 'Sprint Deliverable',
+              team_track: cand.team_track || 'milestone',
+              total_ratings: stats?.count || 0,
+              avg_rating: stats?.count ? (Math.round((stats.avg_rating || 0) * 10) / 10) : 0,
+              breakdown: {
+                5: stats?.stars_5 || 0,
+                4: stats?.stars_4 || 0,
+                3: stats?.stars_3 || 0,
+                2: stats?.stars_2 || 0,
+                1: stats?.stars_1 || 0
+              }
+            });
+          }
         }
       }
 
@@ -808,7 +899,9 @@ export async function onRequest(context) {
         hasActiveSession: activeTarget.status === 'ACTIVE',
         hasClosedSession: isClosed,
         session: activeTarget,
+        targetMember,
         candidates,
+        options: candidates,
         userHasClaimedToken: !!eligibility,
         totalBallots,
         totalEligible,
@@ -821,35 +914,47 @@ export async function onRequest(context) {
     if (pathname === '/api/voting/create' && method === 'POST') {
       const member = await getAuthMember(request, env);
       if (!member || !member.is_host) return jsonResponse({ error: 'Unauthorized: Only Team Lead can launch a review session' }, 403);
-      const { title, description, session_type, metric, options } = await request.json();
+      const { title, description, session_type, metric, options, target_member_id } = await request.json();
 
-      const type = (session_type === 'PROJECT_QUALITY') ? 'PROJECT_QUALITY' : 'PEER_PERFORMANCE';
-      const cleanTitle = (title || (type === 'PROJECT_QUALITY' ? 'Sprint 1 Project Quality & Milestone Review' : 'Sprint 1 Peer Review & Contribution Standings')).trim();
-      const cleanDesc = (description || metric || (type === 'PROJECT_QUALITY' ? 'Deliverable Quality & Architecture Stability' : 'Sprint Contribution & Team Collaboration')).trim();
+      const type = (session_type === 'PROJECT_QUALITY' || session_type === 'PROJECT_EXPERIENCE') ? 'PROJECT_QUALITY' : 'PEER_PERFORMANCE';
+      const cleanTitle = (title || (type === 'PROJECT_QUALITY' ? 'Sprint 1 Project Review & Team Experience' : 'Sprint Peer Performance Review')).trim();
+      const cleanDesc = (description || metric || (type === 'PROJECT_QUALITY' ? 'Team dynamic, working collaboration, and milestone delivery.' : 'Anonymous sprint contribution ratings (1–5 Stars). Cryptographically decoupled via HMAC blind tokens with zero identity linkage.')).trim();
+      const targetMemberId = (type === 'PEER_PERFORMANCE' && target_member_id) ? parseInt(target_member_id, 10) : null;
 
       const membersCount = await env.DB.prepare('SELECT COUNT(*) as count FROM members WHERE is_allowed = 1').first();
       const totalEligible = membersCount?.count || 8;
 
-      // Archive any active sessions before opening the new one
-      await env.DB.prepare("UPDATE voting_sessions SET status = 'ARCHIVED' WHERE status = 'ACTIVE'").run();
+      // Close any active sessions before opening the new one
+      await env.DB.prepare("UPDATE voting_sessions SET status = 'CLOSED', closed_at = datetime('now') WHERE status = 'ACTIVE'").run();
 
       const insertRes = await env.DB.prepare(`
-        INSERT INTO voting_sessions (title, description, session_type, status, total_eligible, created_by, created_at)
-        VALUES (?, ?, ?, 'ACTIVE', ?, ?, datetime('now'))
-      `).bind(cleanTitle, cleanDesc, type, totalEligible, member.id).run();
+        INSERT INTO voting_sessions (title, description, session_type, status, total_eligible, created_by, created_at, target_member_id)
+        VALUES (?, ?, ?, 'ACTIVE', ?, ?, datetime('now'), ?)
+      `).bind(cleanTitle, cleanDesc, type, totalEligible, member.id, targetMemberId).run();
 
       const newSessionId = insertRes.meta.last_row_id;
 
-      if (type === 'PROJECT_QUALITY' && Array.isArray(options)) {
-        for (const optLabel of options) {
-          if (typeof optLabel === 'string' && optLabel.trim()) {
-            await env.DB.prepare('INSERT INTO voting_options (session_id, label) VALUES (?, ?)').bind(newSessionId, optLabel.trim()).run();
+      if (type === 'PEER_PERFORMANCE' && targetMemberId) {
+        const targetM = await env.DB.prepare('SELECT id, name FROM members WHERE id = ?').bind(targetMemberId).first();
+        if (targetM) {
+          await env.DB.prepare('INSERT INTO voting_options (session_id, candidate_member_id, label) VALUES (?, ?, ?)').bind(newSessionId, targetM.id, targetM.name).run();
+        }
+      } else if (type === 'PROJECT_QUALITY') {
+        const pillars = (Array.isArray(options) && options.length > 0) ? options : [
+          'Team Dynamic & Working Collaboration',
+          'Sprint Milestone Architecture & Execution',
+          'Code Quality & Deliverable Reliability',
+          'Overall Project Satisfaction'
+        ];
+        for (const pillar of pillars) {
+          if (typeof pillar === 'string' && pillar.trim()) {
+            await env.DB.prepare('INSERT INTO voting_options (session_id, label) VALUES (?, ?)').bind(newSessionId, pillar.trim()).run();
           }
         }
       }
 
       await logAudit(env, member.handle, 'CREATE_VOTING', 'voting', `Launched ${type} review session #${newSessionId}: "${cleanTitle}"`);
-      return jsonResponse({ success: true, session_id: newSessionId });
+      return jsonResponse({ success: true, message: `Review session "${cleanTitle}" successfully launched!`, session_id: newSessionId }, 201);
     }
 
     if ((pathname === '/api/voting/token' || pathname === '/api/voting/collect-token') && method === 'POST') {
