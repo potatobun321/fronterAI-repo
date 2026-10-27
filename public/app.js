@@ -2364,6 +2364,10 @@ async function castAnonymousBallot(e) {
     const data = await res.json();
 
     if (!res.ok) {
+      if (res.status === 409 || data.error?.includes('already cast') || data.error?.includes('Double-spending') || data.error?.includes('FOREIGN KEY')) {
+        state.unlinkedBallotToken = null;
+        if (sessionId) sessionStorage.removeItem('ballot_token_' + sessionId);
+      }
       showToast(data.error || 'Failed to submit evaluation', true);
       return;
     }

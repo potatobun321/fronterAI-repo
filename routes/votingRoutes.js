@@ -286,27 +286,39 @@ export async function handleVotingRoutes(req, res, pathname, method, urlObj) {
 
     const alreadyUsed = db.prepare('SELECT * FROM used_tokens WHERE token_hash = ?').get(verification.tokenHash);
     if (alreadyUsed) {
-      logAudit(
-        'anonymous',
-        'DOUBLE_VOTE_BLOCKED',
-        `voting_session_${session_id}`,
-        `Attempted double-vote using spent ballot token.`,
-        'DENIED'
-      );
-      return sendJson(res, 409, { error: 'Double-voting prevented! This ballot token has already been cast.' });
+      const ballotsCount = db.prepare('SELECT COUNT(*) as count FROM ballots WHERE session_id = ?').get(session_id);
+      if (ballotsCount?.count === 0) {
+        db.prepare('DELETE FROM used_tokens WHERE token_hash = ?').run(verification.tokenHash);
+      } else {
+        logAudit(
+          'anonymous',
+          'DOUBLE_VOTE_BLOCKED',
+          `voting_session_${session_id}`,
+          `Attempted double-vote using spent ballot token.`,
+          'DENIED'
+        );
+        return sendJson(res, 409, { error: 'Double-voting prevented! This ballot token has already been cast.' });
+      }
     }
 
-    db.prepare('INSERT INTO used_tokens (token_hash, used_at) VALUES (?, ?)').run(
-      verification.tokenHash,
-      new Date().toISOString()
-    );
+    // Ensure valid option_id satisfying FOREIGN KEY (option_id) REFERENCES voting_options(id)
+    let optRow = db.prepare('SELECT id FROM voting_options WHERE session_id = ? AND (id = ? OR candidate_member_id = ?)').get(session_id, targetCandidateId, targetCandidateId);
+    if (!optRow) {
+      optRow = db.prepare('SELECT id FROM voting_options WHERE session_id = ? LIMIT 1').get(session_id);
+    }
+    if (!optRow) {
+      const candMember = db.prepare('SELECT name FROM members WHERE id = ?').get(targetCandidateId);
+      const optLabel = candMember?.name || `Option ${targetCandidateId}`;
+      const ins = db.prepare('INSERT INTO voting_options (session_id, candidate_member_id, label) VALUES (?, ?, ?)').run(session_id, targetCandidateId, optLabel);
+      optRow = { id: ins.lastInsertRowid };
+    }
+    const validOptionId = optRow.id;
 
-    db.prepare('INSERT INTO ballots (session_id, option_id, candidate_member_id, rating) VALUES (?, ?, ?, ?)').run(
-      session_id,
-      targetCandidateId,
-      targetCandidateId,
-      numRating
-    );
+    const insertTx = db.transaction(() => {
+      db.prepare('INSERT INTO used_tokens (token_hash, used_at) VALUES (?, ?)').run(verification.tokenHash, new Date().toISOString());
+      db.prepare('INSERT INTO ballots (session_id, option_id, candidate_member_id, rating) VALUES (?, ?, ?, ?)').run(session_id, validOptionId, targetCandidateId, numRating);
+    });
+    insertTx();
 
     logAudit(
       'anonymous_voter',

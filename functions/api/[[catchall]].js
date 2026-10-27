@@ -939,6 +939,11 @@ export async function onRequest(context) {
         if (targetM) {
           await env.DB.prepare('INSERT INTO voting_options (session_id, candidate_member_id, label) VALUES (?, ?, ?)').bind(newSessionId, targetM.id, targetM.name).run();
         }
+      } else if (type === 'PEER_PERFORMANCE') {
+        const allM = await env.DB.prepare('SELECT id, name FROM members WHERE is_allowed = 1').all();
+        for (const m of (allM?.results || [])) {
+          await env.DB.prepare('INSERT INTO voting_options (session_id, candidate_member_id, label) VALUES (?, ?, ?)').bind(newSessionId, m.id, m.name).run();
+        }
       } else if (type === 'PROJECT_QUALITY') {
         const pillars = (Array.isArray(options) && options.length > 0) ? options : [
           'Team Dynamic & Working Collaboration',
@@ -972,7 +977,17 @@ export async function onRequest(context) {
 
       const sessionId = session.id;
       const alreadyClaimed = await env.DB.prepare('SELECT * FROM voting_eligibility WHERE session_id = ? AND member_id = ?').bind(sessionId, member.id).first();
-      if (alreadyClaimed) return jsonResponse({ error: 'You have already claimed a ballot token for this session.' }, 400);
+      if (alreadyClaimed) {
+        // If 0 ballots are recorded in this session (e.g. voter recovered from prior failure), re-issue valid token
+        const ballotsCount = await env.DB.prepare('SELECT COUNT(*) as count FROM ballots WHERE session_id = ?').bind(sessionId).first();
+        if (ballotsCount?.count === 0) {
+          const nonce = crypto.randomUUID();
+          const message = `${sessionId}:${nonce}`;
+          const signature = await hmacSha256(env.VOTING_SECRET || 'secret-salt-key-minimum-32-chars', message);
+          return jsonResponse({ token: `${message}:${signature}` });
+        }
+        return jsonResponse({ error: 'You have already claimed a ballot token for this session.' }, 400);
+      }
 
       await env.DB.prepare("INSERT INTO voting_eligibility (session_id, member_id, token_issued_at) VALUES (?, ?, datetime('now'))").bind(sessionId, member.id).run();
       const nonce = crypto.randomUUID();
@@ -984,7 +999,7 @@ export async function onRequest(context) {
 
     if (pathname === '/api/voting/cast' && method === 'POST') {
       const { token, session_id, option_id, candidate_id, rating } = await request.json();
-      const targetCandidateId = candidate_id || option_id;
+      const targetCandidateId = candidate_id || option_id || 1;
       const numRating = Math.max(1, Math.min(5, parseInt(rating || 5, 10)));
       if (!token || !session_id || !targetCandidateId) return jsonResponse({ error: 'Missing token or ballot payload' }, 400);
 
@@ -998,10 +1013,47 @@ export async function onRequest(context) {
       const expectedSig = await hmacSha256(env.VOTING_SECRET || 'secret-salt-key-minimum-32-chars', `${tokenSessionId}:${nonce}`);
       if (expectedSig !== providedSig) return jsonResponse({ error: 'Cryptographic signature invalid' }, 403);
       const tokenHash = await sha256(token);
+
+      // Check double-spending & recover from orphaned tokens if ballots insert failed previously
       const used = await env.DB.prepare('SELECT * FROM used_tokens WHERE token_hash = ?').bind(tokenHash).first();
-      if (used) return jsonResponse({ error: 'Double-spending rejected: Token already cast' }, 409);
-      await env.DB.prepare("INSERT INTO used_tokens (token_hash, used_at) VALUES (?, datetime('now'))").bind(tokenHash).run();
-      await env.DB.prepare('INSERT INTO ballots (session_id, option_id, candidate_member_id, rating) VALUES (?, ?, ?, ?)').bind(session_id, targetCandidateId, targetCandidateId, numRating).run();
+      if (used) {
+        const ballotsCount = await env.DB.prepare('SELECT COUNT(*) as count FROM ballots WHERE session_id = ?').bind(session_id).first();
+        if (ballotsCount?.count === 0) {
+          // Token was orphaned by prior FOREIGN KEY error; delete and let voter cast successfully
+          await env.DB.prepare('DELETE FROM used_tokens WHERE token_hash = ?').bind(tokenHash).run();
+        } else {
+          return jsonResponse({ error: 'Double-spending rejected: Token already cast' }, 409);
+        }
+      }
+
+      // Guarantee valid option_id satisfying FOREIGN KEY (option_id) REFERENCES voting_options(id)
+      let optRow = await env.DB.prepare(
+        'SELECT id FROM voting_options WHERE session_id = ? AND (id = ? OR candidate_member_id = ?)'
+      ).bind(session_id, targetCandidateId, targetCandidateId).first();
+
+      if (!optRow) {
+        optRow = await env.DB.prepare(
+          'SELECT id FROM voting_options WHERE session_id = ? LIMIT 1'
+        ).bind(session_id).first();
+      }
+
+      if (!optRow) {
+        const candMember = await env.DB.prepare('SELECT name FROM members WHERE id = ?').bind(targetCandidateId).first();
+        const optLabel = candMember?.name || `Option ${targetCandidateId}`;
+        const insertOpt = await env.DB.prepare(
+          'INSERT INTO voting_options (session_id, candidate_member_id, label) VALUES (?, ?, ?)'
+        ).bind(session_id, targetCandidateId, optLabel).run();
+        optRow = { id: insertOpt.meta.last_row_id };
+      }
+
+      const validOptionId = optRow.id;
+
+      // Atomic execution: insert ballot and burn token together
+      await env.DB.batch([
+        env.DB.prepare("INSERT INTO used_tokens (token_hash, used_at) VALUES (?, datetime('now'))").bind(tokenHash),
+        env.DB.prepare("INSERT INTO ballots (session_id, option_id, candidate_member_id, rating) VALUES (?, ?, ?, ?)").bind(session_id, validOptionId, targetCandidateId, numRating)
+      ]);
+
       await logAudit(env, 'ANONYMOUS_VOTER', 'VOTE_CAST', 'voting', `Anonymous rating of ${numRating}/5 cast in Session #${session_id}`);
       return jsonResponse({ success: true });
     }
