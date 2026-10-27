@@ -86,13 +86,14 @@ async function ensureSchema(env) {
     await env.DB.prepare('ALTER TABLE voting_sessions ADD COLUMN target_member_id INTEGER').run();
   } catch (e) { }
 
-  // Guarantee Host (id = 1) always exists with full permissions
+  // Guarantee Host (id = 1) always exists with full permissions, and ensure non-leads are is_host = 0
   try {
     await env.DB.prepare(`
       INSERT OR IGNORE INTO members (id, github_numeric_id, handle, name, role, team_track, email, is_host, is_allowed)
       VALUES (1, 194890859, 'potatobun321', 'Kartikay', 'Team Host & Lead', 'lead', 'kart123.san@gmail.com', 1, 1)
     `).run();
     await env.DB.prepare('UPDATE members SET is_host = 1, is_allowed = 1 WHERE id = 1').run();
+    await env.DB.prepare("UPDATE members SET is_host = 0 WHERE id != 1 AND handle != 'potatobun321'").run();
   } catch (e) { }
 }
 
@@ -906,14 +907,15 @@ export async function onRequest(context) {
         totalBallots,
         totalEligible,
         isRevealed,
-        isHost: !!(member && member.is_host),
+        isHost: !!(member && member.is_host && (member.id === 1 || member.handle === 'potatobun321')),
         tally
       });
     }
 
     if (pathname === '/api/voting/create' && method === 'POST') {
       const member = await getAuthMember(request, env);
-      if (!member || !member.is_host) return jsonResponse({ error: 'Unauthorized: Only Team Lead can launch a review session' }, 403);
+      const isHost = !!(member && member.is_host && (member.id === 1 || member.handle === 'potatobun321'));
+      if (!isHost) return jsonResponse({ error: 'Unauthorized: Only Team Lead (Admin) can launch a review session' }, 403);
       const { title, description, session_type, metric, options, target_member_id } = await request.json();
 
       const type = (session_type === 'PROJECT_QUALITY' || session_type === 'PROJECT_EXPERIENCE') ? 'PROJECT_QUALITY' : 'PEER_PERFORMANCE';
@@ -1060,7 +1062,8 @@ export async function onRequest(context) {
 
     if (pathname === '/api/voting/close' && method === 'POST') {
       const member = await getAuthMember(request, env);
-      if (!member || !member.is_host) return jsonResponse({ error: 'Unauthorized: Only Team Lead can close a review round' }, 403);
+      const isHost = !!(member && member.is_host && (member.id === 1 || member.handle === 'potatobun321'));
+      if (!isHost) return jsonResponse({ error: 'Unauthorized: Only Team Lead (Admin) can close a review round' }, 403);
       const body = await request.json().catch(() => ({}));
       let targetId = body.session_id;
       if (!targetId) {
@@ -1076,7 +1079,8 @@ export async function onRequest(context) {
 
     if (pathname === '/api/voting/reopen' && method === 'POST') {
       const member = await getAuthMember(request, env);
-      if (!member || !member.is_host) return jsonResponse({ error: 'Unauthorized: Only Team Lead can reopen a review round' }, 403);
+      const isHost = !!(member && member.is_host && (member.id === 1 || member.handle === 'potatobun321'));
+      if (!isHost) return jsonResponse({ error: 'Unauthorized: Only Team Lead (Admin) can reopen a review round' }, 403);
       const body = await request.json().catch(() => ({}));
       let targetId = body.session_id;
       if (!targetId) {

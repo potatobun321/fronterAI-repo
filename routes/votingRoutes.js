@@ -157,8 +157,9 @@ export async function handleVotingRoutes(req, res, pathname, method, urlObj) {
   // Create & Launch a Voting / Review Session (Host only)
   if (pathname === '/api/voting/create' && method === 'POST') {
     const currentUser = getSessionUser(req);
-    if (!currentUser || !currentUser.is_host) {
-      return sendJson(res, 403, { error: 'Permission Denied: Only the Team Host can launch a review session.' });
+    const isHostUser = currentUser && currentUser.is_host && (currentUser.id === 1 || currentUser.handle === 'potatobun321');
+    if (!isHostUser) {
+      return sendJson(res, 403, { error: 'Permission Denied: Only the Team Host (Admin) can launch a review session.' });
     }
 
     const body = await parseBody(req);
@@ -333,8 +334,9 @@ export async function handleVotingRoutes(req, res, pathname, method, urlObj) {
 
   if (pathname === '/api/voting/close' && method === 'POST') {
     const currentUser = getSessionUser(req);
-    if (!currentUser || !currentUser.is_host) {
-      return sendJson(res, 403, { error: 'Permission Denied: Only the Team Host can close a voting session.' });
+    const isHostUser = currentUser && currentUser.is_host && (currentUser.id === 1 || currentUser.handle === 'potatobun321');
+    if (!isHostUser) {
+      return sendJson(res, 403, { error: 'Permission Denied: Only the Team Host (Admin) can close a voting session.' });
     }
 
     const body = await parseBody(req);
@@ -348,8 +350,9 @@ export async function handleVotingRoutes(req, res, pathname, method, urlObj) {
 
   if (pathname === '/api/voting/reopen' && method === 'POST') {
     const currentUser = getSessionUser(req);
-    if (!currentUser || !currentUser.is_host) {
-      return sendJson(res, 403, { error: 'Permission Denied: Only the Team Host can reopen a voting session.' });
+    const isHostUser = currentUser && currentUser.is_host && (currentUser.id === 1 || currentUser.handle === 'potatobun321');
+    if (!isHostUser) {
+      return sendJson(res, 403, { error: 'Permission Denied: Only the Team Host (Admin) can reopen a voting session.' });
     }
 
     const body = await parseBody(req);

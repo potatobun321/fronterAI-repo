@@ -1821,9 +1821,16 @@ async function loadVotingSession(forcedSessionId = null) {
   }
 }
 
+function isCurrentUserAdminHost() {
+  if (!state.currentUser) return false;
+  const isHostFlag = state.currentUser.is_host === 1 || state.currentUser.is_host === true || state.currentUser.is_host === '1';
+  const isHostId = state.currentUser.id === 1 || state.currentUser.handle === 'potatobun321';
+  return !!(isHostFlag && isHostId);
+}
+
 function renderVotingSession() {
   const s = state.votingSession;
-  const isHost = !!(state.currentUser && state.currentUser.is_host);
+  const isHost = isCurrentUserAdminHost();
 
   const idleContainer = document.getElementById('voting-idle-container');
   const activeContainer = document.getElementById('voting-active-container');
@@ -2177,11 +2184,11 @@ function initStarRatingSelector() {
   const explainer = document.getElementById('rating-score-explainer');
 
   const ratingMetadata = {
-    1: { label: '1.0 / 5.0 (Needs Significant Improvement)', text: 'Critical sprint milestones missed; low communication or frequent blocking issues.' },
-    2: { label: '2.0 / 5.0 (Fair Progress)', text: 'Met basic sprint tasks with substantial assistance; opportunity to grow autonomy.' },
-    3: { label: '3.0 / 5.0 (Good & Reliable)', text: 'Dependably delivered sprint deliverables on schedule with solid engineering quality.' },
-    4: { label: '4.0 / 5.0 (Very Good Impact)', text: 'High velocity, proactive PR reviews, and consistently assisted peers with roadblocks.' },
-    5: { label: '5.0 / 5.0 (Outstanding Impact)', text: 'Exceptional sprint velocity, architecture leadership, and proactive peer support.' }
+    1: { label: '1.0 ★ Needs Improvement', text: 'Milestones missed or required heavy intervention.' },
+    2: { label: '2.0 ★ Fair Progress', text: 'Met basic sprint tasks with assistance.' },
+    3: { label: '3.0 ★ Good & Reliable', text: 'Solid delivery on schedule with dependable engineering.' },
+    4: { label: '4.0 ★ Very Good Impact', text: 'High velocity, clean code, and proactive peer assistance.' },
+    5: { label: '5.0 ★ Outstanding Impact', text: 'Exceptional velocity, architecture leadership, and peer support.' }
   };
 
   function updateVisuals(rating) {
@@ -2194,6 +2201,9 @@ function initStarRatingSelector() {
       }
     });
   }
+
+  const initialVal = hiddenInput ? parseInt(hiddenInput.value, 10) : 5;
+  updateVisuals(initialVal);
 
   starButtons.forEach(btn => {
     const rating = parseInt(btn.dataset.rating, 10);
@@ -2392,8 +2402,8 @@ async function castAnonymousBallot(e) {
 }
 
 async function hostCloseVotingSession() {
-  if (!state.currentUser || !state.currentUser.is_host) {
-    showToast('Host Authorization Required: Only the Team Host can close a review session.', true);
+  if (!isCurrentUserAdminHost()) {
+    showToast('Host Authorization Required: Only the Team Host (Admin) can close a review session.', true);
     return;
   }
 
@@ -2419,8 +2429,8 @@ async function hostCloseVotingSession() {
 }
 
 async function hostReopenVotingSession() {
-  if (!state.currentUser || !state.currentUser.is_host) {
-    showToast('Host Authorization Required: Only the Team Host can reopen a review session.', true);
+  if (!isCurrentUserAdminHost()) {
+    showToast('Host Authorization Required: Only the Team Host (Admin) can reopen a review session.', true);
     return;
   }
 
@@ -2447,8 +2457,8 @@ async function hostReopenVotingSession() {
 
 async function submitLaunchVotingSession(e) {
   e.preventDefault();
-  if (!state.currentUser || !state.currentUser.is_host) {
-    showToast('Host Authorization Required: Only the Team Lead can launch a review session.', true);
+  if (!isCurrentUserAdminHost()) {
+    showToast('Host Authorization Required: Only Team Lead (Admin) can launch a review session.', true);
     return;
   }
 
@@ -2530,6 +2540,10 @@ function initLaunchVotingModal() {
     btn?.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
+      if (!isCurrentUserAdminHost()) {
+        showToast('Only Team Lead (Admin) can launch a review session.', true);
+        return;
+      }
       populateLaunchMembers();
       if (modal && !modal.open) {
         modal.showModal();

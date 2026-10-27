@@ -11,9 +11,9 @@
     document.documentElement.dataset.theme =
       localStorage.getItem('frontier-theme') === 'light' ? 'light' : 'dark';
   </script>
-  <link rel="stylesheet" href="styles.css?v=2.1.0">
-  <link rel="stylesheet" href="mobile-nav.css?v=2.1.0">
-  <link rel="stylesheet" href="oracle-panel.css?v=2.1.0">
+  <link rel="stylesheet" href="styles.css?v=2.1.2">
+  <link rel="stylesheet" href="mobile-nav.css?v=2.1.2">
+  <link rel="stylesheet" href="oracle-panel.css?v=2.1.2">
   <link rel="stylesheet" href="theme.css?v=1.0.1">
   <script src="theme-toggle.js?v=1.0.1"></script>
   <script>
@@ -437,89 +437,64 @@
                 <div class="session-round-tag" id="voting-session-headline">Active Evaluation Round</div>
               </div>
 
-              <!-- Live Peer Evaluation Form -->
+              <!-- Minimalist Peer Evaluation Form -->
               <form id="form-submit-ballot" class="peer-evaluation-form">
                 
                 <!-- Section 1: Choose Target -->
                 <div class="eval-section">
                   <div class="eval-section-title">
-                    <span id="label-select-candidate-step">1. Select Teammate to Evaluate</span>
-                    <span class="eval-helper-hint" id="hint-select-candidate-step">Pick an item to submit an anonymous 1–5 star rating</span>
+                    <span id="label-select-candidate-step">1. Teammate Under Evaluation</span>
+                    <span class="eval-helper-hint" id="hint-select-candidate-step">Anonymous 1–5 star rating</span>
                   </div>
                   <div class="candidate-roster-grid" id="ballot-options-container">
                     <!-- Populated dynamically with candidate cards -->
                   </div>
                 </div>
 
-                <!-- Section 2: Interactive 1-5 Star Selector -->
-                <div class="eval-section" style="margin-top: 18px;">
-                  <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
-                    <div class="eval-section-title" id="label-rating-step" style="margin-bottom: 0;">2. Rate Sprint Contribution &amp; Collaboration</div>
-                    <div id="rating-score-label" class="rating-dynamic-score">5.0 / 5.0 (Outstanding Impact)</div>
-                  </div>
-                  <p class="eval-score-explanation" id="rating-score-explainer">Exceptional sprint velocity, architecture leadership, and proactive peer support.</p>
+                <!-- Section 2: Minimalist 1-5 Star Rating -->
+                <div class="eval-section" style="margin-top: 14px;">
+                  <div class="eval-section-title" id="label-rating-step" style="margin-bottom: 6px;">2. Rate Performance</div>
 
-                  <!-- 5 Star Interactive Rating Selector -->
-                  <div class="star-rating-showcase" id="star-rating-selector">
-                    <button type="button" class="star-btn" data-rating="1" title="1 Star - Needs Improvement">
-                      <span class="star-symbol"><svg class="star-svg-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></span>
-                      <span class="star-val">1</span>
-                      <span class="star-desc">Needs Improvement</span>
-                    </button>
-                    <button type="button" class="star-btn" data-rating="2" title="2 Stars - Fair">
-                      <span class="star-symbol"><svg class="star-svg-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></span>
-                      <span class="star-val">2</span>
-                      <span class="star-desc">Fair</span>
-                    </button>
-                    <button type="button" class="star-btn" data-rating="3" title="3 Stars - Good">
-                      <span class="star-symbol"><svg class="star-svg-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></span>
-                      <span class="star-val">3</span>
-                      <span class="star-desc">Good</span>
-                    </button>
-                    <button type="button" class="star-btn" data-rating="4" title="4 Stars - Very Good">
-                      <span class="star-symbol"><svg class="star-svg-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></span>
-                      <span class="star-val">4</span>
-                      <span class="star-desc">Very Good</span>
-                    </button>
-                    <button type="button" class="star-btn active" data-rating="5" title="5 Stars - Outstanding">
-                      <span class="star-symbol"><svg class="star-svg-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></span>
-                      <span class="star-val">5</span>
-                      <span class="star-desc">Outstanding</span>
-                    </button>
+                  <div class="star-rating-minimal-wrap">
+                    <div class="star-rating-showcase" id="star-rating-selector">
+                      <button type="button" class="star-btn" data-rating="1" title="1 Star - Needs Improvement" aria-label="1 Star">
+                        <svg class="star-svg-icon" width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                      </button>
+                      <button type="button" class="star-btn" data-rating="2" title="2 Stars - Fair" aria-label="2 Stars">
+                        <svg class="star-svg-icon" width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                      </button>
+                      <button type="button" class="star-btn" data-rating="3" title="3 Stars - Good" aria-label="3 Stars">
+                        <svg class="star-svg-icon" width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                      </button>
+                      <button type="button" class="star-btn" data-rating="4" title="4 Stars - Very Good" aria-label="4 Stars">
+                        <svg class="star-svg-icon" width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                      </button>
+                      <button type="button" class="star-btn active" data-rating="5" title="5 Stars - Outstanding" aria-label="5 Stars">
+                        <svg class="star-svg-icon" width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                      </button>
+                    </div>
+                    <div class="star-rating-feedback">
+                      <span id="rating-score-label" class="rating-dynamic-score">5.0 &bull; Outstanding Impact</span>
+                      <span id="rating-score-explainer" class="rating-dynamic-hint">Exceptional sprint velocity and proactive peer support.</span>
+                    </div>
                   </div>
                   <input type="hidden" id="selected-ballot-rating" value="5">
                 </div>
 
-                <!-- Section 3: Optional Commendation / Highlight Tags -->
-                <div class="eval-section" style="margin-top: 16px;">
-                  <div class="eval-section-title" style="margin-bottom: 8px;">3. Highlight Key Strengths (Optional)</div>
-                  <div class="praise-chips-group" id="voting-praise-chips">
-                    <button type="button" class="praise-chip" data-praise="High Velocity">High Velocity</button>
-                    <button type="button" class="praise-chip" data-praise="Team Player">Team Player</button>
-                    <button type="button" class="praise-chip" data-praise="Clean Architecture">Clean Architecture</button>
-                    <button type="button" class="praise-chip" data-praise="Problem Solving">Problem Solving</button>
-                    <button type="button" class="praise-chip" data-praise="Fast Turnaround">Fast Turnaround</button>
-                  </div>
-                </div>
-
-                <!-- Cryptographic Identity Shield Banner -->
-                <div class="crypto-shield-banner" id="crypto-shield-banner">
-                  <div class="shield-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8ab4f8" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                  </div>
-                  <div class="shield-info">
-                    <strong>HMAC-SHA256 Blind Ballot Protection</strong>
-                    <p id="crypto-token-status-text">Your evaluation is signed with a blind cryptographic token. The database commits the rating with zero link to your account.</p>
+                <!-- Minimalist Security & Submit Actions Row -->
+                <div class="eval-minimal-bottom-row">
+                  <div class="crypto-shield-minimal" id="crypto-shield-banner">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                    <span id="crypto-token-status-text">HMAC Blind Ballot &bull; Zero identity linkage</span>
                     <code id="display-blind-token" style="display: none;"></code>
+                    <button type="button" class="btn-text-action" id="btn-claim-blind-token" title="Re-fetch blind token">Refresh Token</button>
                   </div>
-                  <button type="button" class="btn btn-outlined btn-sm" id="btn-claim-blind-token" style="flex-shrink: 0;">Refresh Token</button>
-                </div>
-
-                <div class="eval-submit-actions">
-                  <button type="submit" class="btn btn-filled btn-submit-ballot" id="btn-submit-evaluation">
-                    <span>Submit Anonymous 1–5 Star Rating</span>
-                    <span class="btn-arrow">→</span>
-                  </button>
+                  <div class="eval-submit-actions" style="margin: 0;">
+                    <button type="submit" class="btn btn-filled btn-submit-ballot" id="btn-submit-evaluation">
+                      <span>Submit 1–5 Star Rating</span>
+                      <span class="btn-arrow">&rarr;</span>
+                    </button>
+                  </div>
                 </div>
               </form>
 
@@ -1607,8 +1582,8 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=2.1.1"></script>
-  <script type="module" src="oracle-panel.js?v=2.1.1"></script>
-  <script type="module" src="mobile-nav.js?v=2.1.1"></script>
+  <script type="module" src="app.js?v=2.1.2"></script>
+  <script type="module" src="oracle-panel.js?v=2.1.2"></script>
+  <script type="module" src="mobile-nav.js?v=2.1.2"></script>
 </body>
 </html>
