@@ -178,7 +178,7 @@ INSERT OR REPLACE INTO meeting_slots (id, slot_code, slot_name, raw_url, last_us
   (6, 'SLOT-06', 'Meeting Bridge 6', 'https://meet.google.com/sae-wkpe-rth', NULL);
 
 INSERT OR REPLACE INTO members (id, github_numeric_id, handle, name, role, team_track, is_host, is_allowed) VALUES
-  (1, 194890859, 'potatobun321', 'Kartikay', 'Team Host & Lead', 'lead', 1, 1);
+  (1, 194890859, 'kart123.san', 'Kartikay', 'Team Host & Lead', 'lead', 1, 1);
 
 INSERT OR REPLACE INTO tasks (id, title, description, track, assignee_id, status, deadline, deliverable_url, deliverable_notes, version, updated_at) VALUES
   (1, 'Initialize Frontier AI Workspace & Onboard Core Team', 'Authorize core engineering members via GitHub allowlist, configure meeting bridges, and establish sprint deliverables.', 'lead', 1, 'IN_PROGRESS', date('now', '+5 days'), 'https://github.com/potatobun321/fronterAI-repo', 'Real GitHub OAuth 2.0 and strict allowlist gating verified and live.', 1, datetime('now'));

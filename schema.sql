@@ -203,9 +203,9 @@ INSERT OR REPLACE INTO meeting_slots (id, slot_code, slot_name, raw_url, last_us
   (5, 'SLOT-05', 'Meeting Bridge 5', 'https://meet.google.com/nvr-adyb-wmb', NULL),
   (6, 'SLOT-06', 'Meeting Bridge 6', 'https://meet.google.com/sae-wkpe-rth', NULL);
 
--- Initial Authorized Member: Kartikay (@potatobun321) as Team Host & Lead
+-- Initial Authorized Member: Kartikay (kart123.san@gmail.com) as Team Host & Lead
 INSERT OR REPLACE INTO members (id, github_numeric_id, handle, name, role, team_track, is_host, is_allowed) VALUES
-  (1, 194890859, 'potatobun321', 'Kartikay', 'Team Host & Lead', 'lead', 1, 1);
+  (1, 194890859, 'kart123.san', 'Kartikay', 'Team Host & Lead', 'lead', 1, 1);
 
 -- Initial Sprint Task
 INSERT OR REPLACE INTO tasks (id, title, description, track, assignee_id, status, deadline, deliverable_url, deliverable_notes, version, updated_at) VALUES

@@ -384,7 +384,7 @@ async function init() {
       state.currentUser = {
         id: 1,
         github_numeric_id: 194890859,
-        handle: 'potatobun321',
+        handle: 'kart123.san',
         name: 'Kartikay',
         role: 'Team Host & Lead',
         team_track: 'lead',
@@ -395,6 +395,7 @@ async function init() {
       updateHeaderUserChip();
     }
     showWorkspace();
+    setupEventListeners();
     await loadTasks();
     await loadPersonalDashboard();
     await loadCalendarEvents();
@@ -405,9 +406,8 @@ async function init() {
     renderGlobalHub();
   } else {
     showAuthScreen();
+    setupEventListeners();
   }
-
-  setupEventListeners();
 }
 
 function showAuthScreen() {
@@ -426,7 +426,13 @@ function showWorkspace() {
   document.getElementById('auth-screen')?.classList.add('hidden');
   document.getElementById('auth-screen')?.setAttribute('style', 'display: none !important;');
   document.getElementById('workspace-app')?.classList.remove('hidden');
+  updateHostAdminState();
   applyRolePermissions();
+  const hashView = window.location.hash ? window.location.hash.replace('#', '') : null;
+  const savedView = hashView || sessionStorage.getItem('frontier_active_view');
+  if (savedView && document.getElementById(savedView)) {
+    switchView(savedView);
+  }
   requestAnimationFrame(() => {
     updateAllSegmentedGliders();
   });
@@ -682,6 +688,8 @@ function setupNavigation() {
 
 function switchView(viewId) {
   window.switchView = switchView;
+  const isHost = isCurrentUserAdminHost();
+
   // Graceful redirects from legacy view names
   if (viewId === 'view-personal') {
     viewId = 'view-tasks';
@@ -692,8 +700,8 @@ function switchView(viewId) {
   } else if (viewId === 'view-calendar') {
     viewId = 'view-callroom';
   } else if (viewId === 'view-team') {
-    viewId = state.currentUser?.is_host ? 'view-settings' : 'view-peers';
-    if (state.currentUser?.is_host) switchSettingsSubtab('directory');
+    viewId = isHost ? 'view-settings' : 'view-peers';
+    if (isHost) switchSettingsSubtab('directory');
   } else if (viewId === 'view-governance') {
     viewId = 'view-settings';
     switchSettingsSubtab('permissions');
@@ -706,9 +714,16 @@ function switchView(viewId) {
   }
 
   // Non-lead trying to view settings -> redirect to peers
-  if (viewId === 'view-settings' && state.currentUser && !state.currentUser.is_host) {
+  if (viewId === 'view-settings' && !isHost) {
     viewId = 'view-peers';
   }
+
+  try {
+    sessionStorage.setItem('frontier_active_view', viewId);
+    if (window.location.hash !== `#${viewId}`) {
+      window.history.replaceState(null, '', `#${viewId}`);
+    }
+  } catch (e) { }
 
   document.querySelectorAll('.nav-item').forEach(item => {
     item.classList.toggle('active', item.dataset.view === viewId);
@@ -853,7 +868,8 @@ async function submitLogin(identifier) {
 
 function applyRolePermissions() {
   if (!state.currentUser) return;
-  const isHost = !!state.currentUser.is_host;
+  const isHost = isCurrentUserAdminHost();
+  updateHostAdminState();
 
   // Header and Sidebar branding and host indicator
   const hostPill = document.getElementById('header-host-indicator');
@@ -1821,16 +1837,26 @@ async function loadVotingSession(forcedSessionId = null) {
   }
 }
 
+function updateHostAdminState() {
+  const isHost = isCurrentUserAdminHost();
+  document.body.classList.toggle('is-admin-host', isHost);
+}
+
 function isCurrentUserAdminHost() {
   if (!state.currentUser) return false;
-  const isHostFlag = state.currentUser.is_host === 1 || state.currentUser.is_host === true || state.currentUser.is_host === '1';
-  const isHostId = state.currentUser.id === 1 || state.currentUser.handle === 'potatobun321';
-  return !!(isHostFlag && isHostId);
+  const email = (state.currentUser.email || '').toLowerCase().trim();
+  const isLeadEmail = email === 'kart123.san@gmail.com' || email.includes('kart123.san');
+  const isHostId = Number(state.currentUser.id) === 1;
+  const isHostFlag = Number(state.currentUser.is_host) === 1 || state.currentUser.is_host === true;
+  // If user has an email and it's not Kartikay's, they are strictly NOT the admin host
+  if (email && !isLeadEmail) return false;
+  return isLeadEmail || (isHostId && isHostFlag);
 }
 
 function renderVotingSession() {
   const s = state.votingSession;
   const isHost = isCurrentUserAdminHost();
+  updateHostAdminState();
 
   const idleContainer = document.getElementById('voting-idle-container');
   const activeContainer = document.getElementById('voting-active-container');
@@ -1873,14 +1899,10 @@ function renderVotingSession() {
       subtitleEl.textContent = 'Anonymous cryptographic evaluation. No active voting round is currently open.';
     }
 
-    if (openLaunchBtn) {
-      if (isHost) openLaunchBtn.classList.remove('hidden');
-      else openLaunchBtn.classList.add('hidden');
-    }
-    if (idleLaunchBtn) {
-      if (isHost) idleLaunchBtn.classList.remove('hidden');
-      else idleLaunchBtn.classList.add('hidden');
-    }
+    if (openLaunchBtn) openLaunchBtn.classList.toggle('hidden', !isHost);
+    if (idleLaunchBtn) idleLaunchBtn.classList.toggle('hidden', !isHost);
+    if (closedNewRoundBtn) closedNewRoundBtn.classList.add('hidden');
+    if (closedReopenBtn) closedReopenBtn.classList.add('hidden');
     if (closeVoteBtn) closeVoteBtn.classList.add('hidden');
     if (reopenVoteBtn) reopenVoteBtn.classList.add('hidden');
     return;
@@ -1927,20 +1949,12 @@ function renderVotingSession() {
 
     renderTallyMeters(s.tally || [], s.candidates || s.options || [], 'closed-tally-bars-display');
 
-    if (openLaunchBtn) {
-      // In closed state, let the closed container banner own the action buttons to avoid duplicate triggers
-      openLaunchBtn.classList.add('hidden');
-    }
+    if (openLaunchBtn) openLaunchBtn.classList.add('hidden');
+    if (idleLaunchBtn) idleLaunchBtn.classList.add('hidden');
     if (closeVoteBtn) closeVoteBtn.classList.add('hidden');
     if (reopenVoteBtn) reopenVoteBtn.classList.add('hidden');
-    if (closedNewRoundBtn) {
-      if (isHost) closedNewRoundBtn.classList.remove('hidden');
-      else closedNewRoundBtn.classList.add('hidden');
-    }
-    if (closedReopenBtn) {
-      if (isHost) closedReopenBtn.classList.remove('hidden');
-      else closedReopenBtn.classList.add('hidden');
-    }
+    if (closedNewRoundBtn) closedNewRoundBtn.classList.toggle('hidden', !isHost);
+    if (closedReopenBtn) closedReopenBtn.classList.toggle('hidden', !isHost);
     return;
   }
 
@@ -2020,15 +2034,12 @@ function renderVotingSession() {
   if (circlePctEl) circlePctEl.textContent = `${pct}%`;
   if (partPillEl) partPillEl.textContent = ballots >= eligible ? 'All Evaluations Submitted' : 'Active Round in Progress';
 
-  if (isHost) {
-    if (openLaunchBtn) openLaunchBtn.classList.remove('hidden');
-    if (closeVoteBtn) closeVoteBtn.classList.remove('hidden');
-    if (reopenVoteBtn) reopenVoteBtn.classList.add('hidden');
-  } else {
-    if (openLaunchBtn) openLaunchBtn.classList.add('hidden');
-    if (closeVoteBtn) closeVoteBtn.classList.add('hidden');
-    if (reopenVoteBtn) reopenVoteBtn.classList.add('hidden');
-  }
+  if (idleLaunchBtn) idleLaunchBtn.classList.add('hidden');
+  if (closedNewRoundBtn) closedNewRoundBtn.classList.add('hidden');
+  if (closedReopenBtn) closedReopenBtn.classList.add('hidden');
+  if (openLaunchBtn) openLaunchBtn.classList.toggle('hidden', !isHost);
+  if (closeVoteBtn) closeVoteBtn.classList.toggle('hidden', !isHost);
+  if (reopenVoteBtn) reopenVoteBtn.classList.add('hidden');
 
   // Token shield state
   const tokenShieldText = document.getElementById('crypto-token-status-text');

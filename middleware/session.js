@@ -33,7 +33,11 @@ export function getSessionUser(req) {
     JOIN members m ON s.member_id = m.id
     WHERE s.token = ? AND s.expires_at > ?
   `).get(token, now);
-  return row || null;
+  if (!row) return null;
+  const email = (row.email || '').toLowerCase().trim();
+  const isLead = email === 'kart123.san@gmail.com' || (Number(row.id) === 1 && !email);
+  row.is_host = isLead ? 1 : 0;
+  return row;
 }
 
 export function destroySession(token) {

@@ -384,9 +384,9 @@
               <p class="view-subtitle" id="voting-view-subtitle">Anonymous sprint contribution ratings (1–5 Stars). Cryptographically decoupled via HMAC blind tokens with zero identity linkage.</p>
             </div>
             <div class="header-action-group">
-              <button class="btn btn-filled hidden" id="btn-open-launch-voting">+ Launch Review Round</button>
-              <button class="btn btn-outlined hidden" id="btn-host-close-voting">Close Review &amp; Reveal Standings</button>
-              <button class="btn btn-outlined hidden" id="btn-host-reopen-voting">Reopen Review Round</button>
+              <button class="btn btn-filled hidden host-only-control" id="btn-open-launch-voting">+ Launch Review Round</button>
+              <button class="btn btn-outlined hidden host-only-control" id="btn-host-close-voting">Close Review &amp; Reveal Standings</button>
+              <button class="btn btn-outlined hidden host-only-control" id="btn-host-reopen-voting">Reopen Review Round</button>
             </div>
           </div>
 
@@ -399,7 +399,7 @@
             <p style="font-size: 13px; color: var(--text-secondary); max-width: 500px; margin: 0 auto 16px auto; line-height: 1.5;">
               There is currently no active review session open for submissions. The Team Lead can initiate an anonymous peer review or project quality milestone evaluation at any time.
             </p>
-            <button type="button" class="btn btn-filled hidden" id="btn-idle-launch-voting">+ Launch Review Round</button>
+            <button type="button" class="btn btn-filled hidden host-only-control" id="btn-idle-launch-voting">+ Launch Review Round</button>
           </div>
 
           <!-- Container 2: Closed State Banner & Final Leaderboard -->
@@ -413,8 +413,8 @@
                 <p style="font-size: 12.5px; color: var(--text-secondary); margin: 0;" id="closed-round-desc">Submissions have concluded for this round. Final cryptographic ratings and rankings are listed below.</p>
               </div>
               <div class="header-action-group">
-                <button type="button" class="btn btn-filled btn-sm hidden" id="btn-closed-new-round">+ Launch New Round</button>
-                <button type="button" class="btn btn-outlined btn-sm hidden" id="btn-closed-reopen-round">Reopen Submissions</button>
+                <button type="button" class="btn btn-filled btn-sm hidden host-only-control" id="btn-closed-new-round">+ Launch New Round</button>
+                <button type="button" class="btn btn-outlined btn-sm hidden host-only-control" id="btn-closed-reopen-round">Reopen Submissions</button>
               </div>
             </div>
             <div class="standings-cards-list" id="closed-tally-bars-display">
@@ -438,7 +438,7 @@
               </div>
 
               <!-- Minimalist Peer Evaluation Form -->
-              <form id="form-submit-ballot" class="peer-evaluation-form">
+              <form id="form-submit-ballot" class="peer-evaluation-form" onsubmit="return false;">
                 
                 <!-- Section 1: Choose Target -->
                 <div class="eval-section">
@@ -1582,8 +1582,8 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=2.1.2"></script>
-  <script type="module" src="oracle-panel.js?v=2.1.2"></script>
-  <script type="module" src="mobile-nav.js?v=2.1.2"></script>
+  <script type="module" src="app.js?v=2.1.3"></script>
+  <script type="module" src="oracle-panel.js?v=2.1.3"></script>
+  <script type="module" src="mobile-nav.js?v=2.1.3"></script>
 </body>
 </html>
