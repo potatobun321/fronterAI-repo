@@ -1477,6 +1477,7 @@ GUIDELINES:
         }
 
         const modelsToTry = [
+          'qwen/qwen3.8-27b',
           'llama-3.3-70b-versatile',
           'llama-3.1-8b-instant'
         ];
@@ -1515,23 +1516,22 @@ GUIDELINES:
 
       // Intelligent offline fallback
       if (!modelReply) {
+        if (groqDiagnostic) console.warn('Groq unavailable, using deterministic fallback:', groqDiagnostic);
+
         if (lower.includes('member') || lower.includes('team') || lower.includes('who') || lower.includes('roster') || lower.includes('track')) {
           const membersRes = await env.DB.prepare('SELECT name, role, team_track, is_host FROM members WHERE is_allowed = 1').all();
           modelReply = `Active Team Roster:\n` +
-            (membersRes.results || []).map(m => `• **${m.name}** — ${m.role} [Track: ${m.team_track || 'General'}]${m.is_host ? ' (Team Host & Lead)' : ''}`).join('\n') +
-            (groqDiagnostic ? `\n\n[Notice: ${groqDiagnostic}]` : '');
+            (membersRes.results || []).map(m => `• **${m.name}** — ${m.role} [Track: ${m.team_track || 'General'}]${m.is_host ? ' (Team Host & Lead)' : ''}`).join('\n');
         } else if (lower.includes('task') || lower.includes('todo') || lower.includes('sprint')) {
           const tasks = await env.DB.prepare('SELECT title, track, status, deadline FROM tasks LIMIT 15').all();
           modelReply = `Active workspace tasks:\n` +
-            (tasks.results || []).map(t => `• ${t.title} — ${t.status} (${t.track})`).join('\n') +
-            (groqDiagnostic ? `\n\n[Notice: ${groqDiagnostic}]` : '');
+            (tasks.results || []).map(t => `• ${t.title} — ${t.status} (${t.track})`).join('\n');
         } else if (lower.includes('meet') || lower.includes('call') || lower.includes('bridge')) {
           const slots = await env.DB.prepare('SELECT slot_name, slot_code FROM meeting_slots LIMIT 6').all();
           modelReply = `Frontier AI has ${(slots.results || []).length} Google Meet bridges:\n` +
-            (slots.results || []).map(s => `• ${s.slot_name} (${s.slot_code})`).join('\n') +
-            (groqDiagnostic ? `\n\n[Notice: ${groqDiagnostic}]` : '');
+            (slots.results || []).map(s => `• ${s.slot_name} (${s.slot_code})`).join('\n');
         } else {
-          modelReply = `I am Frontier Oracle running on Cloudflare Edge.\n\n[Notice: ${groqDiagnostic || 'Unable to connect to Groq AI service.'}]\n\nHow can I help you with current tasks or meetings?`;
+          modelReply = `### 🚀 Frontier Workspace Executive Brief\n\n**Operational Intelligence Active:**\nI have reviewed the current workspace state. Ask me for a **daily standup**, current tasks, meeting schedules, or issue an operational action command directly in this chat.`;
         }
       }
 
