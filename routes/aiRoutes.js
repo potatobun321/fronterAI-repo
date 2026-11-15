@@ -379,6 +379,39 @@ export async function handleAiRoutes(req, res, pathname, method) {
         });
       }
 
+      // --- ACTION 9: SEND_TASKLET (Direct Workspace Ping / Tasklet) ---
+      if (actionType === 'SEND_TASKLET') {
+        let receiverId = parseInt(payload.receiver_id, 10);
+        if (!receiverId && payload.receiver) {
+          const raw = String(payload.receiver).replace(/^@/, '').toLowerCase().trim();
+          const target = db.prepare('SELECT id FROM members WHERE LOWER(handle) = ? OR LOWER(name) LIKE ? LIMIT 1')
+            .get(raw, `%${raw}%`);
+          if (target) receiverId = target.id;
+        }
+
+        if (!receiverId) return sendJson(res, 400, { error: 'Valid receiver member is required.' });
+
+        const receiver = db.prepare('SELECT id, name, handle FROM members WHERE id = ?').get(receiverId);
+        if (!receiver) return sendJson(res, 404, { error: 'Receiver member not found.' });
+
+        const title = (payload.title || 'Workspace Ping').trim();
+        const description = (payload.description || '').trim();
+
+        const result = db.prepare(`
+          INSERT INTO tasklets (sender_id, receiver_id, title, description, status, created_at, updated_at)
+          VALUES (?, ?, ?, ?, 'PENDING', datetime('now'), datetime('now'))
+        `).run(currentUser.id, receiverId, title, description);
+
+        logAudit(currentUser.handle, 'AI_ACTION_SEND_TASKLET', `tasklet_${result.lastInsertRowid}`, `Sent tasklet to ${receiver.name} (@${receiver.handle}): "${title}"`, 'SUCCESS');
+
+        return sendJson(res, 200, {
+          success: true,
+          action: 'SEND_TASKLET',
+          message: `Tasklet delivered directly to ${receiver.name}'s workspace inbox.`,
+          taskletId: result.lastInsertRowid
+        });
+      }
+
       return sendJson(res, 400, { error: `Unrecognized action type: ${actionType}` });
     } catch (err) {
       console.error('Error executing Oracle action:', err);

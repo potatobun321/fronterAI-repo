@@ -53,3 +53,22 @@ OR
   "reason": "<Optional explanation>"
 }
 ```
+
+### 5. Send Peer Tasklet / Direct Workspace Ping
+```action
+{
+  "action": "SEND_TASKLET",
+  "receiver": "<Member Name or Handle>",
+  "title": "<Subject / Action title>",
+  "description": "<Detailed message or task instructions>"
+}
+```
+
+### 6. Start Anonymous Voting Session (Host Only)
+```action
+{
+  "action": "START_VOTING",
+  "title": "<Voting Round Title>",
+  "description": "<Topic or criteria>"
+}
+```

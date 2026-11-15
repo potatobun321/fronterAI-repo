@@ -484,6 +484,43 @@ ${JSON.stringify(actionPayload, null, 2)}
 \`\`\``;
   }
 
+  // 4d. Action: Send Peer Tasklet / Direct Workspace Ping
+  if (/send tasklet|send ping|send message|tell |ping |remind |notify /.test(text)) {
+    const members = db.prepare('SELECT id, name, handle FROM members WHERE is_allowed = 1 AND id != ?').all(currentUser.id);
+    let target = null;
+    for (const m of members) {
+      if (text.includes(m.name.toLowerCase()) || text.includes(m.handle.toLowerCase())) {
+        target = m;
+        break;
+      }
+    }
+
+    if (target) {
+      const cleaned = userMessage.replace(new RegExp(`(send tasklet|send ping|send message|tell|ping|remind|notify)\\s+(to\\s+)?(@?${target.name}|@?${target.handle})[:\\s]*`, 'i'), '').trim();
+      const title = cleaned.split(/[:\n.]/)[0] || 'Direct Workspace Ping';
+      const description = cleaned || 'Direct message / tasklet delivered via Frontier Oracle';
+
+      const actionPayload = {
+        action: 'SEND_TASKLET',
+        receiver_id: target.id,
+        receiver_name: target.name,
+        title,
+        description
+      };
+
+      return `I have prepared a direct **Peer Tasklet & workspace notification** for **${target.name} (@${target.handle})**:
+
+- **Subject:** ${title}
+- **Message:** ${description}
+
+Please confirm below to deliver this tasklet directly to their workspace inbox:
+
+\`\`\`action
+${JSON.stringify(actionPayload, null, 2)}
+\`\`\``;
+    }
+  }
+
   // 5. Query: Daily Standup Summary
   if (/standup|daily sync|status update/.test(text)) {
     const completedTasks = db.prepare("SELECT title, deliverable_url FROM tasks WHERE status = 'COMPLETED'").all();
