@@ -2,12 +2,15 @@ import { db, logAudit } from '../db.js';
 import { getSessionUser } from '../middleware/session.js';
 import { parseBody, sendJson } from '../middleware/httpHelpers.js';
 import { generateBallotToken, verifyBallotToken } from '../services/ballotCrypto.js';
+import { HOST_EMAIL } from '../config.js';
 
 function isHostUser(u) {
   if (!u) return false;
   const email = (u.email || '').toLowerCase().trim();
-  const isLeadEmail = email === 'kart123.san@gmail.com' || email.includes('kart123.san');
-  return !!(isLeadEmail || (Number(u.id) === 1 && (!email || isLeadEmail)));
+  const hostEmailClean = (HOST_EMAIL || '').toLowerCase().trim();
+  const hostUserPrefix = hostEmailClean.split('@')[0];
+  const isLeadEmail = email === hostEmailClean || (hostUserPrefix && email.includes(hostUserPrefix));
+  return !!(isLeadEmail || u.is_host === 1 || (Number(u.id) === 1 && (!email || isLeadEmail)));
 }
 
 export async function handleVotingRoutes(req, res, pathname, method, urlObj) {
@@ -238,7 +241,12 @@ export async function handleVotingRoutes(req, res, pathname, method, urlObj) {
     const currentUser = getSessionUser(req);
     if (!currentUser) return sendJson(res, 401, { error: 'Authentication required to claim ballot token' });
     const body = await parseBody(req);
-    const sessionId = body.session_id || 1;
+    let sessionId = body.session_id ? parseInt(body.session_id, 10) : null;
+    if (!sessionId) {
+      const activeSess = db.prepare("SELECT id FROM voting_sessions WHERE status = 'ACTIVE' ORDER BY id DESC LIMIT 1").get() ||
+                         db.prepare('SELECT id FROM voting_sessions ORDER BY id DESC LIMIT 1').get();
+      sessionId = activeSess ? activeSess.id : 1;
+    }
 
     const existing = db.prepare('SELECT * FROM voting_eligibility WHERE session_id = ? AND member_id = ?')
       .get(sessionId, currentUser.id);
@@ -321,11 +329,15 @@ export async function handleVotingRoutes(req, res, pathname, method, urlObj) {
     }
     const validOptionId = optRow.id;
 
-    const insertTx = db.transaction(() => {
+    try {
+      db.exec('BEGIN');
       db.prepare('INSERT INTO used_tokens (token_hash, used_at) VALUES (?, ?)').run(verification.tokenHash, new Date().toISOString());
       db.prepare('INSERT INTO ballots (session_id, option_id, candidate_member_id, rating) VALUES (?, ?, ?, ?)').run(session_id, validOptionId, targetCandidateId, numRating);
-    });
-    insertTx();
+      db.exec('COMMIT');
+    } catch (txErr) {
+      try { db.exec('ROLLBACK'); } catch (_) {}
+      throw txErr;
+    }
 
     logAudit(
       'anonymous_voter',

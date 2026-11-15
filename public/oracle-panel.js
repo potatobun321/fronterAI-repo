@@ -359,6 +359,10 @@ export const OracleChatEngine = {
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 12 2 2 4-4"></path><path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12H5V7Z"></path><path d="M22 19H2"></path></svg>
         <span>Peer Tasklets</span>
       </button>
+      <button type="button" class="oracle-quick-btn" data-prompt="Generate a clean sprint standup summary for me based on active tasks and deliverables.">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+        <span>Generate Standup</span>
+      </button>
     `;
   },
 
@@ -392,7 +396,92 @@ export const OracleChatEngine = {
       : (user && user.name ? user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'ME');
 
     const roleClass = isModel ? 'oracle-bubble-model' : 'oracle-bubble-user';
-    const formattedHtml = formatOracleText(content);
+
+    // Parse potential Action Protocol envelope
+    let actionPayload = null;
+    let cleanContent = content;
+    const actionMatch = content.match(/```action\s*([\s\S]*?)```/);
+    if (actionMatch && isModel) {
+      try {
+        actionPayload = JSON.parse(actionMatch[1].trim());
+        cleanContent = content.replace(/```action\s*[\s\S]*?```/g, '').trim();
+      } catch (err) {
+        console.warn('Failed to parse embedded action envelope:', err);
+      }
+    }
+
+    const formattedHtml = formatOracleText(cleanContent);
+
+    // Build Action Card HTML if action detected
+    let actionCardHtml = '';
+    if (actionPayload && actionPayload.action) {
+      let details = '';
+      const badgeTitle = actionPayload.action.replace(/_/g, ' ');
+
+      if (actionPayload.action === 'CREATE_TASK') {
+        details = `<ul>
+          <li><strong>Title:</strong> ${actionPayload.title || 'Untitled Task'}</li>
+          <li><strong>Assignee:</strong> ${actionPayload.assigned_to || 'Self'} (${actionPayload.track || 'backend'})</li>
+          <li><strong>Deadline:</strong> ${actionPayload.deadline || 'TBD'}</li>
+        </ul>`;
+      } else if (actionPayload.action === 'UPDATE_TASK_STATUS') {
+        details = `<ul>
+          <li><strong>Task ID:</strong> #${actionPayload.task_id}</li>
+          <li><strong>New Status:</strong> ${actionPayload.status}</li>
+          ${actionPayload.deliverable_url ? `<li><strong>Deliverable:</strong> <a href="${actionPayload.deliverable_url}" target="_blank">PR Link</a></li>` : ''}
+        </ul>`;
+      } else if (actionPayload.action === 'SCHEDULE_MEETING') {
+        details = `<ul>
+          <li><strong>Title:</strong> ${actionPayload.title}</li>
+          <li><strong>Date & Time:</strong> ${actionPayload.event_date} at ${actionPayload.time_label || '14:00 UTC'}</li>
+          <li><strong>Audience:</strong> ${actionPayload.target_audience || 'all'}</li>
+        </ul>`;
+      } else if (actionPayload.action === 'SIGN_OFF_TICKET') {
+        details = `<ul>
+          <li><strong>Ticket ID:</strong> #${actionPayload.ticket_id}</li>
+          <li><strong>Decision:</strong> Sign Off / Approve Request</li>
+        </ul>`;
+      } else if (actionPayload.action === 'DENY_TICKET') {
+        details = `<ul>
+          <li><strong>Ticket ID:</strong> #${actionPayload.ticket_id}</li>
+          <li><strong>Decision:</strong> Deny Request</li>
+          ${actionPayload.reason ? `<li><strong>Reason:</strong> ${actionPayload.reason}</li>` : ''}
+        </ul>`;
+      } else if (actionPayload.action === 'START_VOTING') {
+        details = `<ul>
+          <li><strong>Session Title:</strong> ${actionPayload.title}</li>
+          <li><strong>Eligible Members:</strong> ${actionPayload.total_eligible || 'All active members'}</li>
+          <li><strong>Privacy:</strong> Cryptographic blind-signature ballot box</li>
+        </ul>`;
+      } else if (actionPayload.action === 'TRANSFER_HOST') {
+        details = `<div style="color:var(--google-yellow, #fdd663); font-weight:600; margin-bottom:4px;">⚠️ IRREVERSIBLE PRIVILEGE SURRENDER</div>
+        <ul>
+          <li><strong>Target Successor:</strong> ${actionPayload.target_name || '#' + actionPayload.target_member_id}</li>
+          <li><strong>Effect:</strong> You will immediately lose all administrative and host capabilities.</li>
+        </ul>`;
+      } else {
+        details = `<pre style="font-size:11px;">${JSON.stringify(actionPayload, null, 2)}</pre>`;
+      }
+
+      actionCardHtml = `
+        <div class="oracle-action-card">
+          <div class="oracle-action-header">
+            <span class="oracle-action-badge">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polyline></svg>
+              ACTION PROPOSAL: ${badgeTitle}
+            </span>
+          </div>
+          <div class="oracle-action-details">${details}</div>
+          <div class="oracle-action-buttons">
+            <button type="button" class="btn-confirm">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              Confirm & Execute
+            </button>
+            <button type="button" class="btn-dismiss">Dismiss</button>
+          </div>
+        </div>
+      `;
+    }
 
     // If empty state was showing in side panel, remove it
     const panelBox = document.getElementById('oracle-panel-messages');
@@ -421,16 +510,18 @@ export const OracleChatEngine = {
         <div class="oracle-bubble-avatar">${avatar}</div>
         <div class="oracle-bubble-content">
           ${formattedHtml}
+          ${actionCardHtml}
           ${copyBtnHtml}
         </div>
       `;
 
+      // Wire copy button
       if (isModel) {
         const copyBtn = bubble.querySelector('.oracle-copy-btn');
         copyBtn?.addEventListener('click', async (e) => {
           e.stopPropagation();
           try {
-            await navigator.clipboard.writeText(content);
+            await navigator.clipboard.writeText(cleanContent);
             copyBtn.classList.add('copied');
             copyBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
             triggerToast('Copied Oracle response to clipboard');
@@ -447,6 +538,54 @@ export const OracleChatEngine = {
             triggerToast('Failed to copy to clipboard', true);
           }
         });
+
+        // Wire Action Card buttons
+        const actionCard = bubble.querySelector('.oracle-action-card');
+        if (actionCard && actionPayload) {
+          const btnConfirm = actionCard.querySelector('.btn-confirm');
+          const btnDismiss = actionCard.querySelector('.btn-dismiss');
+          const buttonsContainer = actionCard.querySelector('.oracle-action-buttons');
+
+          btnDismiss?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (buttonsContainer) {
+              buttonsContainer.innerHTML = `<div class="oracle-action-status-badge dismissed">Action Cancelled</div>`;
+            }
+          });
+
+          btnConfirm?.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (!btnConfirm || btnConfirm.disabled) return;
+            btnConfirm.disabled = true;
+            btnConfirm.textContent = 'Executing...';
+
+            try {
+              const res = await fetch('/api/ai/execute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: actionPayload.action, payload: actionPayload })
+              });
+              const resData = await res.json();
+
+              if (res.ok) {
+                if (buttonsContainer) {
+                  buttonsContainer.innerHTML = `<div class="oracle-action-status-badge success"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> ${resData.message || 'Action Executed Successfully'}</div>`;
+                }
+                triggerToast(resData.message || 'Action executed successfully');
+                window.dispatchEvent(new CustomEvent('workspace:refresh'));
+              } else {
+                if (buttonsContainer) {
+                  buttonsContainer.innerHTML = `<div class="oracle-action-status-badge dismissed" style="color:var(--google-red, #f28b82);">❌ ${resData.error || 'Execution failed'}</div>`;
+                }
+                triggerToast(resData.error || 'Action execution failed', true);
+              }
+            } catch (networkErr) {
+              btnConfirm.disabled = false;
+              btnConfirm.textContent = 'Retry Execution';
+              triggerToast('Network error while executing action', true);
+            }
+          });
+        }
       }
 
       return bubble;

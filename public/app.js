@@ -381,14 +381,13 @@ async function init() {
 
   if (AUTH_BYPASS || state.currentUser) {
     if (!state.currentUser && AUTH_BYPASS) {
-      state.currentUser = {
+      const hostMember = (state.members || []).find(m => m.is_host === 1);
+      state.currentUser = hostMember ? { ...hostMember } : {
         id: 1,
-        github_numeric_id: 194890859,
-        handle: 'kart123.san',
-        name: 'Kartikay',
-        role: 'Team Host & Lead',
+        handle: 'lead',
+        name: 'Team Host & Lead',
+        role: 'Team Lead',
         team_track: 'lead',
-        email: 'kart123.san@gmail.com',
         is_host: 1,
         is_allowed: 1
       };
@@ -1571,7 +1570,7 @@ function renderGlobalHub() {
 
   if (state.votingSession) {
     const ballots = state.votingSession.totalBallots || 0;
-    const eligible = state.votingSession.totalEligible || 8;
+    const eligible = state.votingSession.totalEligible || (state.members && state.members.length) || 1;
     const votePct = Math.round((ballots / eligible) * 100);
     const elRatio = document.getElementById('global-vote-ratio');
     if (elRatio) elRatio.textContent = `${ballots} / ${eligible}`;
@@ -1703,9 +1702,31 @@ function createKanbanCard(task) {
         <button class="btn btn-icon btn-test-occ" data-id="${task.id}" data-version="${task.version}" title="Simulate Stale OCC Write Conflict">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
         </button>
+        ${state.currentUser && state.currentUser.is_host ? `
+        <button class="btn btn-icon btn-delete-task" data-id="${task.id}" title="Delete Task (Host Only)" style="color: var(--text-muted); opacity: 0.7;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        </button>` : ''}
       </div>
     </div>
   `;
+
+  // Delete Task Trigger (Host Only)
+  card.querySelector('.btn-delete-task')?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (!confirm(`Permanently delete task #${task.id}: "${task.title}"?`)) return;
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('Task removed from sprint board');
+        await loadTasks();
+      } else {
+        showToast(data.error || 'Failed to delete task', true);
+      }
+    } catch (err) {
+      showToast('Network error while deleting task', true);
+    }
+  });
 
   // History Inspector triggers
   card.querySelectorAll('.btn-inspect-task, .btn-inspect-history').forEach(el => {
@@ -1807,11 +1828,18 @@ function notifyVotingChanged(type = 'VOTING_CHANGED') {
 }
 
 // Background auto-refresh for peer review in multi-device/multi-browser sessions
+let isVotingPolling = false;
 if (typeof window !== 'undefined') {
   setInterval(async () => {
     const votingView = document.getElementById('view-voting');
-    if (votingView && !votingView.classList.contains('hidden') && document.visibilityState === 'visible') {
-      await loadVotingSession();
+    if (votingView && !votingView.classList.contains('hidden') && document.visibilityState === 'visible' && !isVotingPolling) {
+      isVotingPolling = true;
+      try {
+        await loadVotingSession();
+      } catch (_) {
+      } finally {
+        isVotingPolling = false;
+      }
     }
   }, 3500);
 }
@@ -1846,13 +1874,7 @@ function updateHostAdminState() {
 
 function isCurrentUserAdminHost() {
   if (!state.currentUser) return false;
-  const email = (state.currentUser.email || '').toLowerCase().trim();
-  const isLeadEmail = email === 'kart123.san@gmail.com' || email.includes('kart123.san');
-  const isHostId = Number(state.currentUser.id) === 1;
-  const isHostFlag = Number(state.currentUser.is_host) === 1 || state.currentUser.is_host === true;
-  // If user has an email and it's not Kartikay's, they are strictly NOT the admin host
-  if (email && !isLeadEmail) return false;
-  return isLeadEmail || (isHostId && isHostFlag);
+  return Number(state.currentUser.is_host) === 1 || state.currentUser.is_host === true;
 }
 
 function renderVotingSession() {
@@ -2019,7 +2041,7 @@ function renderVotingSession() {
   }
 
   const ballots = s.totalBallots || 0;
-  const eligible = s.totalEligible || s.candidates?.length || 8;
+  const eligible = s.totalEligible || (state.members && state.members.length) || s.candidates?.length || 1;
   const pct = Math.min(100, Math.round((ballots / eligible) * 100));
 
   const ballotsCountEl = document.getElementById('stats-ballots-count');
@@ -2821,12 +2843,27 @@ function renderTickets() {
     const isPending = ticket.status === 'PENDING_APPROVAL';
     const isRequester = state.currentUser && state.currentUser.id === ticket.requester_id;
 
+    let tagClass = 'tag-amber';
+    let tagLabel = 'PENDING SIGN-OFF';
+    if (ticket.status === 'APPROVED') {
+      tagClass = 'tag-green';
+      tagLabel = 'SIGNED OFF';
+    } else if (ticket.status === 'DENIED') {
+      tagClass = 'tag-red';
+      tagLabel = 'DENIED';
+    }
+
     let actionBtnHtml = '';
     if (isPending) {
-      if (isRequester) {
+      if (isRequester && !state.currentUser?.is_host) {
         actionBtnHtml = `<button class="btn btn-outlined btn-sm btn-approve-ticket" data-id="${ticket.id}">Sign Off (Self-Approval Guarded)</button>`;
       } else {
-        actionBtnHtml = `<button class="btn btn-filled btn-sm btn-approve-ticket" data-id="${ticket.id}">Review &amp; Sign Off</button>`;
+        actionBtnHtml = `
+          <div style="display: flex; gap: 6px;">
+            <button class="btn btn-filled btn-sm btn-approve-ticket" data-id="${ticket.id}">Review &amp; Sign Off</button>
+            <button class="btn btn-outlined btn-sm btn-deny-ticket" data-id="${ticket.id}" style="color: #f28b82; border-color: rgba(234,67,53,0.35);">Deny</button>
+          </div>
+        `;
       }
     }
 
@@ -2836,7 +2873,7 @@ function renderTickets() {
           <h4>${ticket.title}</h4>
           <span class="ticket-scope-tag">${ticket.scope}</span>
         </div>
-        <span class="kpi-tag ${isPending ? 'tag-amber' : 'tag-green'}">${isPending ? 'PENDING SIGN-OFF' : 'SIGNED OFF'}</span>
+        <span class="kpi-tag ${tagClass}">${tagLabel}</span>
       </div>
 
       <div class="ticket-reason-box">
@@ -2884,6 +2921,13 @@ function renderTickets() {
       await approveTicket(ticketId);
     });
   });
+
+  container.querySelectorAll('.btn-deny-ticket').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const ticketId = parseInt(btn.dataset.id, 10);
+      await denyTicket(ticketId);
+    });
+  });
 }
 
 async function approveTicket(ticketId) {
@@ -2900,6 +2944,24 @@ async function approveTicket(ticketId) {
     await loadTickets();
   } catch (err) {
     showToast('Failed to sign off deliverable', true);
+  }
+}
+
+async function denyTicket(ticketId) {
+  if (!confirm('Are you sure you want to deny this access / sign-off request?')) return;
+  try {
+    const res = await fetch(`/api/tickets/${ticketId}/deny`, { method: 'POST' });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showToast(data.error || 'Failed to deny ticket', true);
+      return;
+    }
+
+    showToast(data.message || 'Deliverable ticket denied');
+    await loadTickets();
+  } catch (err) {
+    showToast('Failed to deny ticket: ' + err.message, true);
   }
 }
 
@@ -3063,6 +3125,9 @@ function renderTeamRoster() {
           </button>
         ` : ''}
         ${!isPeersView && isHost && !m.is_host ? `
+          <button class="btn btn-outlined btn-sm btn-transfer-host" data-id="${m.id}" title="Transfer Team Lead authority to this member" style="border-color: rgba(253, 214, 99, 0.4); color: var(--google-yellow, #fdd663);">
+            Transfer Lead
+          </button>
           <button class="btn btn-danger btn-sm btn-remove-member" data-id="${m.id}" title="Remove member from allowlist">
             Remove
           </button>
@@ -3076,6 +3141,35 @@ function renderTeamRoster() {
 
     card.querySelector('.btn-peer-feedback')?.addEventListener('click', () => {
       openSendFeedbackModal(m.id);
+    });
+
+    card.querySelector('.btn-transfer-host')?.addEventListener('click', async () => {
+      if (!confirm(`⚠️ DANGER: Transfer Team Lead authority to ${m.name} (@${m.handle})?\n\nOnce transferred, you will immediately SURRENDER all administrative and host privileges!`)) {
+        return;
+      }
+      try {
+        const res = await fetch('/api/members/transfer-host', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target_member_id: m.id })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          showToast(data.message || 'Host authority transferred successfully.');
+          if (state.currentUser) {
+            state.currentUser.is_host = 0;
+            state.currentUser.role = 'Software Engineer';
+          }
+          updateHostAdminState();
+          updateHeaderUserChip();
+          await loadMembers();
+          window.dispatchEvent(new CustomEvent('workspace:refresh'));
+        } else {
+          showToast(data.error || 'Failed to transfer authority', true);
+        }
+      } catch (err) {
+        showToast('Network error transferring authority', true);
+      }
     });
 
     card.querySelector('.btn-remove-member')?.addEventListener('click', async () => {
@@ -4662,6 +4756,21 @@ function setupEventListeners() {
   });
 
   setupOracleListeners();
+
+  // Real-time synchronization when Oracle chat performs workspace actions
+  window.addEventListener('workspace:refresh', async () => {
+    try {
+      await Promise.all([
+        typeof loadTasks === 'function' ? loadTasks() : null,
+        typeof loadPersonalDashboard === 'function' ? loadPersonalDashboard() : null,
+        typeof loadCalendarEvents === 'function' ? loadCalendarEvents() : null,
+        typeof loadTickets === 'function' ? loadTickets() : null,
+        typeof loadAuditTrail === 'function' ? loadAuditTrail() : null
+      ]);
+    } catch (err) {
+      console.warn('Error refreshing workspace views:', err);
+    }
+  });
 }
 
 // =============================================================

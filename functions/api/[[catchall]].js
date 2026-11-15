@@ -41,11 +41,9 @@ async function sha256(message) {
   return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-function isHostMember(member) {
+function isHostMember(member, env = {}) {
   if (!member) return false;
-  const email = (member.email || '').toLowerCase().trim();
-  const isLeadEmail = email === 'kart123.san@gmail.com' || email.includes('kart123.san');
-  return !!(isLeadEmail || (Number(member.id) === 1 && (!email || isLeadEmail)));
+  return Number(member.is_host) === 1;
 }
 
 async function ensureSchema(env) {
@@ -93,20 +91,23 @@ async function ensureSchema(env) {
     await env.DB.prepare('ALTER TABLE voting_sessions ADD COLUMN target_member_id INTEGER').run();
   } catch (e) { }
 
-  // Guarantee Host (id = 1, kart123.san@gmail.com) always exists with full permissions, and ensure non-leads are is_host = 0
+  // Guarantee Host (id = 1) always exists with full permissions, and ensure non-leads are is_host = 0
+  const hostEmail = ((env && env.HOST_EMAIL) || 'kart123.san@gmail.com').toLowerCase().trim();
+  const hostGithubId = (env && env.HOST_GITHUB_ID) ? Number(env.HOST_GITHUB_ID) : 194890859;
+  const hostHandle = ((env && env.HOST_HANDLE) || 'kart123.san').trim();
+  const hostName = ((env && env.HOST_NAME) || 'Kartikay').trim();
   try {
     await env.DB.prepare(`
       INSERT OR IGNORE INTO members (id, github_numeric_id, handle, name, role, team_track, email, is_host, is_allowed)
-      VALUES (1, 194890859, 'kart123.san', 'Kartikay', 'Team Host & Lead', 'lead', 'kart123.san@gmail.com', 1, 1)
-    `).run();
+      VALUES (1, ?, ?, ?, 'Team Host & Lead', 'lead', ?, 1, 1)
+    `).bind(hostGithubId, hostHandle, hostName, hostEmail).run();
   } catch (e) { }
 
   try {
-    await env.DB.prepare("UPDATE members SET is_host = 1, is_allowed = 1 WHERE id = 1 OR LOWER(email) = 'kart123.san@gmail.com'").run();
-  } catch (e) { }
-
-  try {
-    await env.DB.prepare("UPDATE members SET is_host = 0 WHERE id != 1 AND LOWER(COALESCE(email, '')) != 'kart123.san@gmail.com'").run();
+    const existingHost = await env.DB.prepare('SELECT id FROM members WHERE is_host = 1 LIMIT 1').first();
+    if (!existingHost) {
+      await env.DB.prepare("UPDATE members SET is_host = 1, is_allowed = 1 WHERE id = 1 OR LOWER(email) = ?").bind(hostEmail).run();
+    }
   } catch (e) { }
 }
 
@@ -147,17 +148,18 @@ async function getAuthMember(request, env) {
       'SELECT * FROM members WHERE id = ? AND is_allowed = 1'
     ).bind(session.member_id).first();
     if (!member && session.member_id === 1) {
+      const hostEmail = ((env && env.HOST_EMAIL) || 'kart123.san@gmail.com').toLowerCase().trim();
       try {
         await env.DB.prepare(`
           INSERT OR IGNORE INTO members (id, github_numeric_id, handle, name, role, team_track, email, is_host, is_allowed)
-          VALUES (1, 194890859, 'kart123.san', 'Kartikay', 'Team Host & Lead', 'lead', 'kart123.san@gmail.com', 1, 1)
-        `).run();
-        await env.DB.prepare("UPDATE members SET is_host = 1, is_allowed = 1, email = 'kart123.san@gmail.com' WHERE id = 1").run();
+          VALUES (1, 194890859, 'kart123.san', 'Kartikay', 'Team Host & Lead', 'lead', ?, 1, 1)
+        `).bind(hostEmail).run();
+        await env.DB.prepare("UPDATE members SET is_host = 1, is_allowed = 1, email = ? WHERE id = 1").bind(hostEmail).run();
         member = await env.DB.prepare('SELECT * FROM members WHERE id = 1 AND is_allowed = 1').first();
       } catch (e) { }
     }
     if (member) {
-      member.is_host = isHostMember(member) ? 1 : 0;
+      member.is_host = isHostMember(member, env) ? 1 : 0;
     }
     return member || null;
   } catch (err) {
@@ -295,9 +297,11 @@ export async function onRequest(context) {
 
       // Allowlist check:
       let member = null;
+      const hostEmailClean = ((env && env.HOST_EMAIL) || 'kart123.san@gmail.com').toLowerCase().trim();
+      const hostUserPrefix = hostEmailClean.split('@')[0];
       const isHostEmail = googleEmail && (
-        googleEmail.toLowerCase() === 'kart123.san@gmail.com' ||
-        googleEmail.toLowerCase().includes('kart123.san')
+        googleEmail.toLowerCase() === hostEmailClean ||
+        (hostUserPrefix && googleEmail.toLowerCase().includes(hostUserPrefix))
       );
 
       // 1. Host Priority Check: Host is always recognized and guaranteed active access
@@ -612,6 +616,34 @@ export async function onRequest(context) {
         console.error('Failed to remove member:', err);
         return jsonResponse({ error: `Database purge failed: ${err.message}` }, 500);
       }
+    }
+
+    if (pathname === '/api/members/transfer-host' && method === 'POST') {
+      const member = await getAuthMember(request, env);
+      if (!isHostMember(member, env)) return jsonResponse({ error: 'Forbidden: Only the Team Host can transfer admin authority.' }, 403);
+
+      const { target_member_id } = await request.json();
+      const targetId = parseInt(target_member_id, 10);
+      if (!targetId) return jsonResponse({ error: 'target_member_id is required' }, 400);
+      if (targetId === member.id) return jsonResponse({ error: 'You are already the Team Host.' }, 400);
+
+      const targetMember = await env.DB.prepare('SELECT id, name, handle, is_allowed FROM members WHERE id = ?').bind(targetId).first();
+      if (!targetMember || targetMember.is_allowed !== 1) {
+        return jsonResponse({ error: 'Target member not found or not approved.' }, 404);
+      }
+
+      await env.DB.batch([
+        env.DB.prepare("UPDATE members SET is_host = 1, role = 'Team Host & Lead', team_track = 'lead' WHERE id = ?").bind(targetId),
+        env.DB.prepare("UPDATE members SET is_host = 0, role = 'Software Engineer' WHERE id = ?").bind(member.id)
+      ]);
+
+      await logAudit(env, member.handle, 'HOST_AUTHORITY_TRANSFERRED', `member_${targetId}`, `Team Host authority transferred from ${member.name} to ${targetMember.name}`);
+
+      return jsonResponse({
+        success: true,
+        message: `Team Host authority transferred to ${targetMember.name}. You have surrendered administrative privileges.`,
+        new_host: { id: targetMember.id, name: targetMember.name, handle: targetMember.handle }
+      });
     }
 
     // --------------------------------------------------------------------------
@@ -985,14 +1017,14 @@ export async function onRequest(context) {
         totalBallots,
         totalEligible,
         isRevealed,
-        isHost: isHostMember(member),
+        isHost: isHostMember(member, env),
         tally
       });
     }
 
     if (pathname === '/api/voting/create' && method === 'POST') {
       const member = await getAuthMember(request, env);
-      const isHost = isHostMember(member);
+      const isHost = isHostMember(member, env);
       if (!isHost) return jsonResponse({ error: 'Unauthorized: Only Team Lead (Admin) can launch a review session' }, 403);
       const { title, description, session_type, metric, options, target_member_id } = await request.json();
 
@@ -1140,7 +1172,7 @@ export async function onRequest(context) {
 
     if (pathname === '/api/voting/close' && method === 'POST') {
       const member = await getAuthMember(request, env);
-      const isHost = isHostMember(member);
+      const isHost = isHostMember(member, env);
       if (!isHost) return jsonResponse({ error: 'Unauthorized: Only Team Lead (Admin) can close a review round' }, 403);
       const body = await request.json().catch(() => ({}));
       let targetId = body.session_id;
@@ -1157,7 +1189,7 @@ export async function onRequest(context) {
 
     if (pathname === '/api/voting/reopen' && method === 'POST') {
       const member = await getAuthMember(request, env);
-      const isHost = isHostMember(member);
+      const isHost = isHostMember(member, env);
       if (!isHost) return jsonResponse({ error: 'Unauthorized: Only Team Lead (Admin) can reopen a review round' }, 403);
       const body = await request.json().catch(() => ({}));
       let targetId = body.session_id;
@@ -1280,6 +1312,21 @@ export async function onRequest(context) {
       }
       await env.DB.prepare("UPDATE access_tickets SET status = 'APPROVED', approver_id = ?, resolved_at = datetime('now') WHERE id = ?").bind(member.id, ticketId).run();
       await logAudit(env, member.handle, 'APPROVE_TICKET', 'governance', `Approved ticket #${ticketId}`);
+      return jsonResponse({ success: true, ticketId });
+    }
+
+    if (pathname.startsWith('/api/tickets/') && pathname.endsWith('/deny') && method === 'POST') {
+      const member = await getAuthMember(request, env);
+      if (!member) return jsonResponse({ error: 'Authentication required' }, 401);
+      const ticketId = parseInt(pathname.split('/')[3], 10);
+      const ticket = await env.DB.prepare('SELECT * FROM access_tickets WHERE id = ?').bind(ticketId).first();
+      if (!ticket) return jsonResponse({ error: 'Ticket not found' }, 404);
+      if (ticket.status !== 'PENDING_APPROVAL') return jsonResponse({ error: `Ticket already ${ticket.status}` }, 400);
+      if (ticket.requester_id === member.id && !member.is_host) {
+        return jsonResponse({ error: 'You cannot deny your own ticket as non-host.' }, 403);
+      }
+      await env.DB.prepare("UPDATE access_tickets SET status = 'DENIED', approver_id = ?, resolved_at = datetime('now') WHERE id = ?").bind(member.id, ticketId).run();
+      await logAudit(env, member.handle, 'DENY_TICKET', 'governance', `Denied ticket #${ticketId}`, 'DENIED');
       return jsonResponse({ success: true, ticketId });
     }
 
@@ -1431,9 +1478,7 @@ GUIDELINES:
 
         const modelsToTry = [
           'llama-3.3-70b-versatile',
-          'llama-3.1-8b-instant',
-          'openai/gpt-oss-120b',
-          'openai/gpt-oss-20b'
+          'llama-3.1-8b-instant'
         ];
         for (const modelName of modelsToTry) {
           try {
@@ -1538,6 +1583,159 @@ GUIDELINES:
       }
       const msgs = await env.DB.prepare('SELECT id, sender_role, content, created_at FROM ai_messages WHERE thread_id = ? ORDER BY id ASC').bind(threadId).all();
       return jsonResponse({ thread, messages: msgs.results || [] });
+    }
+
+    // POST /api/ai/execute (Execute action from Oracle with RBAC on Cloudflare D1)
+    if (pathname === '/api/ai/execute' && method === 'POST') {
+      const member = await getAuthMember(request, env);
+      if (!member) return jsonResponse({ error: 'Unauthorized: Sign in required.' }, 401);
+
+      const body = await request.json();
+      const actionType = body.action;
+      const payload = body.payload || body;
+
+      if (!actionType) return jsonResponse({ error: 'Missing action type' }, 400);
+
+      // CREATE_TASK (Host Only)
+      if (actionType === 'CREATE_TASK') {
+        if (!isHostMember(member, env)) {
+          return jsonResponse({ error: 'Forbidden: Only the Team Host can create tasks.' }, 403);
+        }
+        const title = (payload.title || '').trim();
+        if (!title) return jsonResponse({ error: 'Task title is required.' }, 400);
+
+        let assigneeId = member.id;
+        if (payload.assigned_to) {
+          const raw = String(payload.assigned_to).replace(/^@/, '').toLowerCase().trim();
+          const target = await env.DB.prepare('SELECT id FROM members WHERE LOWER(handle) = ? OR LOWER(name) LIKE ? LIMIT 1').bind(raw, `%${raw}%`).first();
+          if (target) assigneeId = target.id;
+        }
+
+        const track = ['frontend', 'backend', 'lead'].includes(payload.track) ? payload.track : 'backend';
+        const deadline = payload.deadline || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+        const desc = payload.description || 'Created via Frontier Oracle';
+
+        const ins = await env.DB.prepare(
+          "INSERT INTO tasks (title, description, track, assignee_id, status, deadline, deliverable_url, version, updated_at) VALUES (?, ?, ?, ?, 'TODO', ?, NULL, 1, datetime('now'))"
+        ).bind(title, desc, track, assigneeId, deadline).run();
+
+        const newId = ins.meta?.last_row_id;
+        await recordAudit(env, member.handle || member.name, 'AI_ACTION_CREATE_TASK', `task_${newId}`, `Created task "${title}"`, 'SUCCESS');
+        return jsonResponse({ success: true, action: 'CREATE_TASK', message: `Task #${newId} ("${title}") created successfully.`, taskId: newId });
+      }
+
+      // DELETE_TASK (Host Only)
+      if (actionType === 'DELETE_TASK') {
+        if (!isHostMember(member, env)) return jsonResponse({ error: 'Forbidden: Only the Team Host can delete tasks.' }, 403);
+        const taskId = parseInt(payload.task_id, 10);
+        if (!taskId) return jsonResponse({ error: 'Task ID is required.' }, 400);
+        await env.DB.prepare('DELETE FROM tasks WHERE id = ?').bind(taskId).run();
+        await recordAudit(env, member.handle || member.name, 'AI_ACTION_DELETE_TASK', `task_${taskId}`, `Deleted task #${taskId}`, 'SUCCESS');
+        return jsonResponse({ success: true, action: 'DELETE_TASK', message: `Task #${taskId} deleted successfully.` });
+      }
+
+      // UPDATE_TASK_STATUS (Host or Assigned Member)
+      if (actionType === 'UPDATE_TASK_STATUS') {
+        const taskId = parseInt(payload.task_id, 10);
+        if (!taskId) return jsonResponse({ error: 'Task ID required.' }, 400);
+        const task = await env.DB.prepare('SELECT id, assignee_id FROM tasks WHERE id = ?').bind(taskId).first();
+        if (!task) return jsonResponse({ error: 'Task not found.' }, 404);
+
+        if (!isHostMember(member, env) && task.assignee_id !== member.id) {
+          return jsonResponse({ error: 'Forbidden: You can only update tasks assigned to you.' }, 403);
+        }
+
+        const allowed = ['TODO', 'IN_PROGRESS', 'REVIEW', 'COMPLETED'];
+        const newStatus = (payload.status || '').toUpperCase();
+        if (!allowed.includes(newStatus)) return jsonResponse({ error: 'Invalid status.' }, 400);
+
+        await env.DB.prepare("UPDATE tasks SET status = ?, deliverable_url = COALESCE(?, deliverable_url), updated_at = datetime('now') WHERE id = ?").bind(newStatus, payload.deliverable_url || null, taskId).run();
+        await recordAudit(env, member.handle || member.name, 'AI_ACTION_UPDATE_TASK', `task_${taskId}`, `Updated status to ${newStatus}`, 'SUCCESS');
+        return jsonResponse({ success: true, action: 'UPDATE_TASK_STATUS', message: `Task #${taskId} status updated to ${newStatus}.` });
+      }
+
+      // SCHEDULE_MEETING (Host Only)
+      if (actionType === 'SCHEDULE_MEETING') {
+        if (!isHostMember(member, env)) return jsonResponse({ error: 'Forbidden: Only Host can schedule meetings.' }, 403);
+        const title = (payload.title || 'Sprint Alignment Sync').trim();
+        const eventDate = payload.event_date || new Date(Date.now() + 86400000).toISOString().split('T')[0];
+        const timeLabel = payload.time_label || '14:00 UTC';
+        const targetAudience = payload.target_audience || 'all';
+        const eventType = payload.event_type || 'SYNC';
+
+        const ins = await env.DB.prepare(
+          "INSERT INTO calendar_events (title, description, event_type, event_date, time_label, target_audience, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        ).bind(title, 'Scheduled via Frontier Oracle', eventType, eventDate, timeLabel, targetAudience, member.id).run();
+
+        const newId = ins.meta?.last_row_id;
+        await recordAudit(env, member.handle || member.name, 'AI_ACTION_SCHEDULE_MEETING', `calendar_${newId}`, `Scheduled meeting "${title}"`, 'SUCCESS');
+        return jsonResponse({ success: true, action: 'SCHEDULE_MEETING', message: `Meeting "${title}" scheduled for ${eventDate} at ${timeLabel}.`, eventId: newId });
+      }
+
+      // SIGN_OFF_TICKET (Host Only)
+      if (actionType === 'SIGN_OFF_TICKET') {
+        if (!isHostMember(member, env)) return jsonResponse({ error: 'Forbidden: Only Host can sign off tickets.' }, 403);
+        const ticketId = parseInt(payload.ticket_id, 10);
+        if (!ticketId) return jsonResponse({ error: 'Ticket ID required.' }, 400);
+        await env.DB.prepare("UPDATE access_tickets SET status = 'APPROVED', approver_id = ?, resolved_at = datetime('now') WHERE id = ?").bind(member.id, ticketId).run();
+        await recordAudit(env, member.handle || member.name, 'AI_ACTION_SIGN_OFF_TICKET', `ticket_${ticketId}`, `Signed off ticket #${ticketId}`, 'SUCCESS');
+        return jsonResponse({ success: true, action: 'SIGN_OFF_TICKET', message: `Ticket #${ticketId} signed off successfully.` });
+      }
+
+      // DENY_TICKET (Host Only)
+      if (actionType === 'DENY_TICKET') {
+        if (!isHostMember(member, env)) return jsonResponse({ error: 'Forbidden: Only Host can deny tickets.' }, 403);
+        const ticketId = parseInt(payload.ticket_id, 10);
+        if (!ticketId) return jsonResponse({ error: 'Ticket ID required.' }, 400);
+        await env.DB.prepare("UPDATE access_tickets SET status = 'DENIED', approver_id = ?, resolved_at = datetime('now') WHERE id = ?").bind(member.id, ticketId).run();
+        await recordAudit(env, member.handle || member.name, 'AI_ACTION_DENY_TICKET', `ticket_${ticketId}`, `Denied ticket #${ticketId}`, 'SUCCESS');
+        return jsonResponse({ success: true, action: 'DENY_TICKET', message: `Ticket #${ticketId} has been denied.` });
+      }
+
+      // START_VOTING (Host Only)
+      if (actionType === 'START_VOTING') {
+        if (!isHostMember(member, env)) return jsonResponse({ error: 'Forbidden: Only Host can initiate voting sessions.' }, 403);
+        const title = (payload.title || 'Sprint Peer Performance Review').trim();
+        const description = payload.description || 'Anonymous peer evaluation session';
+        const membersRes = await env.DB.prepare('SELECT COUNT(*) as count FROM members WHERE is_allowed = 1').first();
+        const totalEligible = payload.total_eligible || membersRes?.count || 8;
+
+        await env.DB.prepare("UPDATE voting_sessions SET status = 'CLOSED', closed_at = datetime('now') WHERE status = 'ACTIVE'").run();
+
+        const ins = await env.DB.prepare(
+          "INSERT INTO voting_sessions (title, description, session_type, status, total_eligible, created_by, created_at) VALUES (?, ?, 'PERFORMANCE', 'ACTIVE', ?, ?, datetime('now'))"
+        ).bind(title, description, totalEligible, member.id).run();
+
+        const newId = ins.meta?.last_row_id;
+        const activeMembers = await env.DB.prepare('SELECT id, name FROM members WHERE is_allowed = 1').all();
+        for (const m of (activeMembers.results || [])) {
+          await env.DB.prepare('INSERT INTO voting_options (session_id, candidate_member_id, label) VALUES (?, ?, ?)').bind(newId, m.id, m.name).run();
+        }
+
+        await recordAudit(env, member.handle || member.name, 'AI_ACTION_START_VOTING', `voting_session_${newId}`, `Host launched voting session #${newId}`, 'SUCCESS');
+        return jsonResponse({ success: true, action: 'START_VOTING', message: `Voting session #${newId} ("${title}") is now ACTIVE.`, sessionId: newId });
+      }
+
+      // TRANSFER_HOST (Host Only)
+      if (actionType === 'TRANSFER_HOST') {
+        if (!isHostMember(member, env)) return jsonResponse({ error: 'Forbidden: Only Host can transfer admin authority.' }, 403);
+        const targetId = parseInt(payload.target_member_id, 10);
+        if (!targetId) return jsonResponse({ error: 'target_member_id is required.' }, 400);
+        if (targetId === member.id) return jsonResponse({ error: 'You are already the Team Host.' }, 400);
+
+        const targetMember = await env.DB.prepare('SELECT id, name, handle, is_allowed FROM members WHERE id = ?').bind(targetId).first();
+        if (!targetMember || targetMember.is_allowed !== 1) return jsonResponse({ error: 'Target member not found or not approved.' }, 404);
+
+        await env.DB.batch([
+          env.DB.prepare("UPDATE members SET is_host = 1, role = 'Team Host & Lead', team_track = 'lead' WHERE id = ?").bind(targetId),
+          env.DB.prepare("UPDATE members SET is_host = 0, role = 'Software Engineer' WHERE id = ?").bind(member.id)
+        ]);
+
+        await logAudit(env, member.handle || member.name, 'AI_ACTION_TRANSFER_HOST', `member_${targetId}`, `Transferred host authority to ${targetMember.name}`);
+        return jsonResponse({ success: true, action: 'TRANSFER_HOST', message: `Team Host authority transferred to ${targetMember.name}.`, newHostId: targetId });
+      }
+
+      return jsonResponse({ error: `Unrecognized action type: ${actionType}` }, 400);
     }
 
     return jsonResponse({ error: 'Not Found', path: pathname }, 404);

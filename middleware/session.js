@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { db } from '../db.js';
 import { parseCookies } from './httpHelpers.js';
+import { HOST_EMAIL } from '../config.js';
 
 export function generateSessionToken() {
   return crypto.randomBytes(32).toString('hex');
@@ -34,9 +35,7 @@ export function getSessionUser(req) {
     WHERE s.token = ? AND s.expires_at > ?
   `).get(token, now);
   if (!row) return null;
-  const email = (row.email || '').toLowerCase().trim();
-  const isLead = email === 'kart123.san@gmail.com' || (Number(row.id) === 1 && !email);
-  row.is_host = isLead ? 1 : 0;
+  row.is_host = Number(row.is_host) === 1 ? 1 : 0;
   return row;
 }
 

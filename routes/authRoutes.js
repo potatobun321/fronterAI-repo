@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { db, logAudit } from '../db.js';
 import { getSessionUser, createSession, destroySession } from '../middleware/session.js';
 import { parseCookies, parseBody, sendJson } from '../middleware/httpHelpers.js';
-import { BASE_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, isProduction } from '../config.js';
+import { BASE_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, HOST_EMAIL, isProduction } from '../config.js';
 
 function createSignedState(secret) {
   const nonce = crypto.randomBytes(16).toString('hex');
@@ -117,9 +117,11 @@ export async function handleAuthRoutes(req, res, pathname, method, urlObj) {
 
       // Check allowlist:
       let member = null;
+      const hostEmailClean = (HOST_EMAIL || '').toLowerCase().trim();
+      const hostUserPrefix = hostEmailClean.split('@')[0];
       const isHostEmail = googleEmail && (
-        googleEmail.toLowerCase() === 'kart123.san@gmail.com' ||
-        googleEmail.toLowerCase().includes('kart123.san')
+        googleEmail.toLowerCase() === hostEmailClean ||
+        (hostUserPrefix && googleEmail.toLowerCase().includes(hostUserPrefix))
       );
 
       // 1. Host Priority Check: Host is always recognized and guaranteed active access
@@ -221,7 +223,7 @@ export async function handleAuthRoutes(req, res, pathname, method, urlObj) {
     if (isProduction) {
       return sendJson(res, 404, { error: 'Not found' });
     }
-    const email = urlObj.searchParams.get('email') || 'kart123.san@gmail.com';
+    const email = urlObj.searchParams.get('email') || HOST_EMAIL;
     let member = db.prepare('SELECT * FROM members WHERE LOWER(email) = LOWER(?)').get(email);
 
     // If new simulated user, register as pending request
@@ -296,6 +298,45 @@ export async function handleAuthRoutes(req, res, pathname, method, urlObj) {
       'Set-Cookie': 'frontier_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'
     });
     return res.end(JSON.stringify({ message: 'Logged out successfully' }));
+  }
+
+  // Dev / Testing Simulation Endpoint
+  if (pathname === '/api/auth/login-as' && method === 'POST') {
+    if (isProduction) {
+      return sendJson(res, 404, { error: 'Not found' });
+    }
+    const body = await parseBody(req);
+    const { github_numeric_id } = body;
+
+    const member = db.prepare('SELECT * FROM members WHERE github_numeric_id = ?').get(github_numeric_id);
+
+    if (!member || !member.is_allowed) {
+      logAudit(
+        `gh_${github_numeric_id || 'unknown'}`,
+        'LOGIN_ATTEMPT',
+        'auth_allowlist',
+        `Unauthorized login attempt from GitHub ID ${github_numeric_id}. Rejected by allowlist policy.`,
+        'DENIED'
+      );
+      return sendJson(res, 403, {
+        error: 'Access Denied: Account is not in the Frontier AI membership allowlist.',
+        github_numeric_id
+      });
+    }
+
+    const sessionToken = createSession(member);
+    logAudit(
+      member.handle,
+      'LOGIN_SUCCESS',
+      'auth_session',
+      `Authenticated as ${member.name} (${member.role}). Access level: ${member.is_host ? 'AUTHORATOR' : 'PARTICIPANT'}.`,
+      'SUCCESS'
+    );
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Set-Cookie': `frontier_session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`
+    });
+    return res.end(JSON.stringify({ user: member, message: 'Logged in successfully' }));
   }
 
   return false;
