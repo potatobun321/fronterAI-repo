@@ -416,7 +416,90 @@ async function runTests() {
     }
     console.log(`[PASS] 16g. AI Consensus Synthesis: Oracle generated structured consensus overview without revealing voter ballots.\n`);
 
-    console.log('🎉 ALL 27 ARCHITECTURE, SECURITY, GUARDRAIL & AI ACTION CHECKS PASSED PERFECTLY!');
+    // 17. Host Authority Transfer & Surrender Lifecycle
+    // 17a. Non-host attempts to transfer authority (MUST BE FORBIDDEN)
+    await testFetch(base + '/api/auth/login-as', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ github_numeric_id: 10102 })
+    });
+
+    const unauthorizedTransfer = await testFetch(base + '/api/members/transfer-host', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_member_id: 1 })
+    });
+    if (unauthorizedTransfer.status !== 403) {
+      throw new Error(`Non-host transfer should be 403, got ${unauthorizedTransfer.status}`);
+    }
+    console.log(`[PASS] 17a. Host Transfer Boundary: Non-host forbidden from transferring authority (HTTP 403).`);
+
+    // 17b. Active Host Kartikay transfers authority to Member #2 (Test Developer)
+    await testFetch(base + '/api/auth/login-as', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ github_numeric_id: 194890859 })
+    });
+
+    const transferRes = await testFetch(base + '/api/members/transfer-host', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_member_id: 2 })
+    });
+    if (transferRes.status !== 200) {
+      throw new Error(`Host authority transfer failed with HTTP ${transferRes.status}`);
+    }
+    const transferData = await transferRes.json();
+    console.log(`[PASS] 17b. Host Authority Transfer: Host transferred leadership to ${transferData.new_host.name}.`);
+
+    // 17c. Verify database state: Member #2 is Host, Member #1 is regular contributor
+    const member1 = db.prepare('SELECT is_host, role FROM members WHERE id = 1').get();
+    const member2 = db.prepare('SELECT is_host, role FROM members WHERE id = 2').get();
+    if (member1.is_host !== 0 || member2.is_host !== 1) {
+      throw new Error(`Database state mismatch post-transfer: Member #1 is_host=${member1.is_host}, Member #2 is_host=${member2.is_host}`);
+    }
+    console.log(`[PASS] 17c. Database State Integrity: Member #2 is now Host (is_host=1); Member #1 is Demoted (is_host=0).`);
+
+    // 17d. Former Host attempts administrative action (task creation) -> MUST BE BLOCKED (403)
+    const formerHostAction = await testFetch(base + '/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Host Task Attempt by Demoted User', track: 'backend', assignee_id: 1 })
+    });
+    if (formerHostAction.status !== 403) {
+      throw new Error(`Former host should be blocked from admin actions, got HTTP ${formerHostAction.status}`);
+    }
+    console.log(`[PASS] 17d. Privilege Revocation Verified: Former host blocked from administrative task allocation (HTTP 403 Forbidden).`);
+
+    // 17e. New Host (Member #2) successfully executes administrative task allocation
+    await testFetch(base + '/api/auth/login-as', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ github_numeric_id: 10102 })
+    });
+
+    const newHostAction = await testFetch(base + '/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'New Host Strategic Milestone', track: 'lead', assignee_id: 2 })
+    });
+    if (newHostAction.status !== 201) {
+      throw new Error(`New host should be able to allocate tasks, got HTTP ${newHostAction.status}`);
+    }
+    console.log(`[PASS] 17e. New Host Administrative Access: Successor successfully allotted task with HTTP 201.`);
+
+    // 17f. New Host transfers authority back to Member #1 (Kartikay)
+    const transferBackRes = await testFetch(base + '/api/members/transfer-host', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_member_id: 1 })
+    });
+    if (transferBackRes.status !== 200) {
+      throw new Error(`Transfer back failed with HTTP ${transferBackRes.status}`);
+    }
+    console.log(`[PASS] 17f. Round-Trip Transfer: Authority transferred back to original Host successfully.\n`);
+
+    console.log('🎉 ALL 33 ARCHITECTURE, SECURITY, GUARDRAIL, ACTION & AUTHORITY TRANSFER CHECKS PASSED PERFECTLY!');
     process.exit(0);
 
   } catch (err) {

@@ -198,5 +198,58 @@ export async function handleMemberRoutes(req, res, pathname, method) {
     return sendJson(res, 200, { success: true, message: `Access request for ${targetMember.name} was rejected.` });
   }
 
+  // Transfer Team Host authority to another member
+  if (pathname === '/api/members/transfer-host' && method === 'POST') {
+    const currentUser = getSessionUser(req);
+    if (!currentUser || !currentUser.is_host) {
+      return sendJson(res, 403, { error: 'Forbidden: Only the active Team Host can transfer admin authority.' });
+    }
+
+    const body = await parseBody(req);
+    const targetMemberId = parseInt(body.target_member_id, 10);
+    if (!targetMemberId) {
+      return sendJson(res, 400, { error: 'target_member_id is required.' });
+    }
+
+    if (targetMemberId === currentUser.id) {
+      return sendJson(res, 400, { error: 'You are already the Team Host.' });
+    }
+
+    const targetMember = db.prepare('SELECT * FROM members WHERE id = ?').get(targetMemberId);
+    if (!targetMember) {
+      return sendJson(res, 404, { error: 'Target member not found.' });
+    }
+
+    if (targetMember.is_allowed !== 1) {
+      return sendJson(res, 400, { error: 'Cannot transfer authority to an unapproved member.' });
+    }
+
+    try {
+      db.exec('BEGIN');
+      db.prepare("UPDATE members SET is_host = 1, role = 'Team Host & Lead', team_track = 'lead' WHERE id = ?").run(targetMemberId);
+      db.prepare("UPDATE members SET is_host = 0, role = 'Software Engineer' WHERE id = ?").run(currentUser.id);
+      db.exec('COMMIT');
+    } catch (err) {
+      try { db.exec('ROLLBACK'); } catch (_) {}
+      console.error('Failed to transfer host authority:', err);
+      return sendJson(res, 500, { error: 'Failed to transfer host authority.' });
+    }
+
+    logAudit(
+      currentUser.handle,
+      'HOST_AUTHORITY_TRANSFERRED',
+      `member_${targetMemberId}`,
+      `Team Host authority transferred from ${currentUser.name} (@${currentUser.handle}) to ${targetMember.name} (@${targetMember.handle}).`,
+      'SUCCESS'
+    );
+
+    return sendJson(res, 200, {
+      success: true,
+      message: `Team Host authority transferred to ${targetMember.name}. You have surrendered administrative privileges.`,
+      new_host: { id: targetMember.id, name: targetMember.name, handle: targetMember.handle },
+      previous_host: { id: currentUser.id, name: currentUser.name, handle: currentUser.handle }
+    });
+  }
+
   return false;
 }

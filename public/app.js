@@ -3125,6 +3125,9 @@ function renderTeamRoster() {
           </button>
         ` : ''}
         ${!isPeersView && isHost && !m.is_host ? `
+          <button class="btn btn-outlined btn-sm btn-transfer-host" data-id="${m.id}" title="Transfer Team Lead authority to this member" style="border-color: rgba(253, 214, 99, 0.4); color: var(--google-yellow, #fdd663);">
+            Transfer Lead
+          </button>
           <button class="btn btn-danger btn-sm btn-remove-member" data-id="${m.id}" title="Remove member from allowlist">
             Remove
           </button>
@@ -3138,6 +3141,35 @@ function renderTeamRoster() {
 
     card.querySelector('.btn-peer-feedback')?.addEventListener('click', () => {
       openSendFeedbackModal(m.id);
+    });
+
+    card.querySelector('.btn-transfer-host')?.addEventListener('click', async () => {
+      if (!confirm(`⚠️ DANGER: Transfer Team Lead authority to ${m.name} (@${m.handle})?\n\nOnce transferred, you will immediately SURRENDER all administrative and host privileges!`)) {
+        return;
+      }
+      try {
+        const res = await fetch('/api/members/transfer-host', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target_member_id: m.id })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          showToast(data.message || 'Host authority transferred successfully.');
+          if (state.currentUser) {
+            state.currentUser.is_host = 0;
+            state.currentUser.role = 'Software Engineer';
+          }
+          updateHostAdminState();
+          updateHeaderUserChip();
+          await loadMembers();
+          window.dispatchEvent(new CustomEvent('workspace:refresh'));
+        } else {
+          showToast(data.error || 'Failed to transfer authority', true);
+        }
+      } catch (err) {
+        showToast('Network error transferring authority', true);
+      }
     });
 
     card.querySelector('.btn-remove-member')?.addEventListener('click', async () => {

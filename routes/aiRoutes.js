@@ -344,6 +344,41 @@ export async function handleAiRoutes(req, res, pathname, method) {
         });
       }
 
+      // --- RBAC ACTION 8: TRANSFER_HOST (Host Only) ---
+      if (actionType === 'TRANSFER_HOST') {
+        if (!currentUser.is_host) {
+          return sendJson(res, 403, { error: 'Forbidden: Only the Team Host can transfer admin authority.' });
+        }
+
+        const targetMemberId = parseInt(payload.target_member_id, 10);
+        if (!targetMemberId) return sendJson(res, 400, { error: 'target_member_id is required.' });
+        if (targetMemberId === currentUser.id) return sendJson(res, 400, { error: 'You are already the Team Host.' });
+
+        const targetMember = db.prepare('SELECT * FROM members WHERE id = ?').get(targetMemberId);
+        if (!targetMember || targetMember.is_allowed !== 1) {
+          return sendJson(res, 404, { error: 'Target member not found or not approved.' });
+        }
+
+        try {
+          db.exec('BEGIN');
+          db.prepare("UPDATE members SET is_host = 1, role = 'Team Host & Lead', team_track = 'lead' WHERE id = ?").run(targetMemberId);
+          db.prepare("UPDATE members SET is_host = 0, role = 'Software Engineer' WHERE id = ?").run(currentUser.id);
+          db.exec('COMMIT');
+        } catch (txErr) {
+          try { db.exec('ROLLBACK'); } catch (_) {}
+          throw txErr;
+        }
+
+        logAudit(currentUser.handle, 'AI_ACTION_TRANSFER_HOST', `member_${targetMemberId}`, `Transferred host authority to ${targetMember.name}`, 'SUCCESS');
+
+        return sendJson(res, 200, {
+          success: true,
+          action: 'TRANSFER_HOST',
+          message: `Team Host authority transferred to ${targetMember.name}. You are now a contributor.`,
+          newHostId: targetMemberId
+        });
+      }
+
       return sendJson(res, 400, { error: `Unrecognized action type: ${actionType}` });
     } catch (err) {
       console.error('Error executing Oracle action:', err);

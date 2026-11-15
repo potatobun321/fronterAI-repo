@@ -43,11 +43,7 @@ async function sha256(message) {
 
 function isHostMember(member, env = {}) {
   if (!member) return false;
-  const email = (member.email || '').toLowerCase().trim();
-  const hostEmail = ((env && env.HOST_EMAIL) || 'kart123.san@gmail.com').toLowerCase().trim();
-  const hostPrefix = hostEmail.split('@')[0];
-  const isLeadEmail = email === hostEmail || (hostPrefix && email.includes(hostPrefix));
-  return !!(isLeadEmail || member.is_host === 1 || (Number(member.id) === 1 && (!email || isLeadEmail)));
+  return Number(member.is_host) === 1;
 }
 
 async function ensureSchema(env) {
@@ -108,11 +104,10 @@ async function ensureSchema(env) {
   } catch (e) { }
 
   try {
-    await env.DB.prepare("UPDATE members SET is_host = 1, is_allowed = 1 WHERE id = 1 OR LOWER(email) = ?").bind(hostEmail).run();
-  } catch (e) { }
-
-  try {
-    await env.DB.prepare("UPDATE members SET is_host = 0 WHERE id != 1 AND LOWER(COALESCE(email, '')) != ?").bind(hostEmail).run();
+    const existingHost = await env.DB.prepare('SELECT id FROM members WHERE is_host = 1 LIMIT 1').first();
+    if (!existingHost) {
+      await env.DB.prepare("UPDATE members SET is_host = 1, is_allowed = 1 WHERE id = 1 OR LOWER(email) = ?").bind(hostEmail).run();
+    }
   } catch (e) { }
 }
 
@@ -621,6 +616,34 @@ export async function onRequest(context) {
         console.error('Failed to remove member:', err);
         return jsonResponse({ error: `Database purge failed: ${err.message}` }, 500);
       }
+    }
+
+    if (pathname === '/api/members/transfer-host' && method === 'POST') {
+      const member = await getAuthMember(request, env);
+      if (!isHostMember(member, env)) return jsonResponse({ error: 'Forbidden: Only the Team Host can transfer admin authority.' }, 403);
+
+      const { target_member_id } = await request.json();
+      const targetId = parseInt(target_member_id, 10);
+      if (!targetId) return jsonResponse({ error: 'target_member_id is required' }, 400);
+      if (targetId === member.id) return jsonResponse({ error: 'You are already the Team Host.' }, 400);
+
+      const targetMember = await env.DB.prepare('SELECT id, name, handle, is_allowed FROM members WHERE id = ?').bind(targetId).first();
+      if (!targetMember || targetMember.is_allowed !== 1) {
+        return jsonResponse({ error: 'Target member not found or not approved.' }, 404);
+      }
+
+      await env.DB.batch([
+        env.DB.prepare("UPDATE members SET is_host = 1, role = 'Team Host & Lead', team_track = 'lead' WHERE id = ?").bind(targetId),
+        env.DB.prepare("UPDATE members SET is_host = 0, role = 'Software Engineer' WHERE id = ?").bind(member.id)
+      ]);
+
+      await logAudit(env, member.handle, 'HOST_AUTHORITY_TRANSFERRED', `member_${targetId}`, `Team Host authority transferred from ${member.name} to ${targetMember.name}`);
+
+      return jsonResponse({
+        success: true,
+        message: `Team Host authority transferred to ${targetMember.name}. You have surrendered administrative privileges.`,
+        new_host: { id: targetMember.id, name: targetMember.name, handle: targetMember.handle }
+      });
     }
 
     // --------------------------------------------------------------------------
@@ -1691,6 +1714,25 @@ GUIDELINES:
 
         await recordAudit(env, member.handle || member.name, 'AI_ACTION_START_VOTING', `voting_session_${newId}`, `Host launched voting session #${newId}`, 'SUCCESS');
         return jsonResponse({ success: true, action: 'START_VOTING', message: `Voting session #${newId} ("${title}") is now ACTIVE.`, sessionId: newId });
+      }
+
+      // TRANSFER_HOST (Host Only)
+      if (actionType === 'TRANSFER_HOST') {
+        if (!isHostMember(member, env)) return jsonResponse({ error: 'Forbidden: Only Host can transfer admin authority.' }, 403);
+        const targetId = parseInt(payload.target_member_id, 10);
+        if (!targetId) return jsonResponse({ error: 'target_member_id is required.' }, 400);
+        if (targetId === member.id) return jsonResponse({ error: 'You are already the Team Host.' }, 400);
+
+        const targetMember = await env.DB.prepare('SELECT id, name, handle, is_allowed FROM members WHERE id = ?').bind(targetId).first();
+        if (!targetMember || targetMember.is_allowed !== 1) return jsonResponse({ error: 'Target member not found or not approved.' }, 404);
+
+        await env.DB.batch([
+          env.DB.prepare("UPDATE members SET is_host = 1, role = 'Team Host & Lead', team_track = 'lead' WHERE id = ?").bind(targetId),
+          env.DB.prepare("UPDATE members SET is_host = 0, role = 'Software Engineer' WHERE id = ?").bind(member.id)
+        ]);
+
+        await logAudit(env, member.handle || member.name, 'AI_ACTION_TRANSFER_HOST', `member_${targetId}`, `Transferred host authority to ${targetMember.name}`);
+        return jsonResponse({ success: true, action: 'TRANSFER_HOST', message: `Team Host authority transferred to ${targetMember.name}.`, newHostId: targetId });
       }
 
       return jsonResponse({ error: `Unrecognized action type: ${actionType}` }, 400);

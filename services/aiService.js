@@ -449,6 +449,41 @@ ${JSON.stringify(actionPayload, null, 2)}
 \`\`\``;
   }
 
+  // 4c. Action: Transfer Host Authority (Host Only)
+  if (/transfer host|transfer lead|transfer admin/.test(text)) {
+    if (!currentUser.is_host) {
+      return '❌ **Permission Denied:** Only the active Team Host can transfer leadership authority.';
+    }
+
+    const members = db.prepare('SELECT id, name, handle FROM members WHERE is_allowed = 1 AND id != ?').all(currentUser.id);
+    let target = null;
+    for (const m of members) {
+      if (text.includes(m.name.toLowerCase()) || text.includes(m.handle.toLowerCase())) {
+        target = m;
+        break;
+      }
+    }
+
+    if (!target) {
+      return `⚠️ Please specify an active team member to transfer authority to (e.g. \`transfer host to ${members[0]?.name || 'Charlie'}\`).`;
+    }
+
+    const actionPayload = {
+      action: 'TRANSFER_HOST',
+      target_member_id: target.id,
+      target_name: target.name
+    };
+
+    return `⚠️ **CAUTION:** You are about to transfer Team Host authority to **${target.name} (@${target.handle})**.
+Once executed, you will immediately surrender all administrative and moderation privileges.
+
+Please confirm below if you wish to proceed:
+
+\`\`\`action
+${JSON.stringify(actionPayload, null, 2)}
+\`\`\``;
+  }
+
   // 5. Query: Daily Standup Summary
   if (/standup|daily sync|status update/.test(text)) {
     const completedTasks = db.prepare("SELECT title, deliverable_url FROM tasks WHERE status = 'COMPLETED'").all();

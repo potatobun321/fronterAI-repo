@@ -453,6 +453,12 @@ export const OracleChatEngine = {
           <li><strong>Eligible Members:</strong> ${actionPayload.total_eligible || 'All active members'}</li>
           <li><strong>Privacy:</strong> Cryptographic blind-signature ballot box</li>
         </ul>`;
+      } else if (actionPayload.action === 'TRANSFER_HOST') {
+        details = `<div style="color:var(--google-yellow, #fdd663); font-weight:600; margin-bottom:4px;">⚠️ IRREVERSIBLE PRIVILEGE SURRENDER</div>
+        <ul>
+          <li><strong>Target Successor:</strong> ${actionPayload.target_name || '#' + actionPayload.target_member_id}</li>
+          <li><strong>Effect:</strong> You will immediately lose all administrative and host capabilities.</li>
+        </ul>`;
       } else {
         details = `<pre style="font-size:11px;">${JSON.stringify(actionPayload, null, 2)}</pre>`;
       }

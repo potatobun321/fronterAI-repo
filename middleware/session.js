@@ -35,9 +35,7 @@ export function getSessionUser(req) {
     WHERE s.token = ? AND s.expires_at > ?
   `).get(token, now);
   if (!row) return null;
-  const email = (row.email || '').toLowerCase().trim();
-  const isLead = email === HOST_EMAIL.toLowerCase() || (Number(row.id) === 1 && !email);
-  row.is_host = (isLead || row.is_host === 1) ? 1 : 0;
+  row.is_host = Number(row.is_host) === 1 ? 1 : 0;
   return row;
 }
 
