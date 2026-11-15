@@ -1444,16 +1444,78 @@ export async function onRequest(context) {
         memory = await env.DB.prepare('SELECT memory_data FROM member_memories WHERE member_id = ?').bind(memberId).first();
       } catch (e) { }
 
-      const systemPrompt = `You are Frontier Oracle, the AI project assistant for the Frontier AI engineering workspace.
-Current User: ${member.name} (@${member.handle || member.email}) — ${member.role}${memory?.memory_data ? '\nUser Profile: ' + memory.memory_data : ''}
+      const isHost = isHostMember(member, env);
+      const systemPrompt = `You are Frontier Oracle, the elite technical intelligence and operational execution agent for the Frontier AI workspace.
+You have real-time situational awareness and direct action-dispatching authority over workspace state.
+
+ACTIVE SESSION IDENTITY:
+User: ${member.name} (@${member.handle || member.email}) | Role: ${member.role} [Track: ${member.team_track || 'General'}]
+Host / Admin Authorization: ${isHost ? 'YES (Authorized Team Host & Lead)' : 'NO (Regular Team Contributor)'}${memory?.memory_data ? '\nUser Profile: ' + memory.memory_data : ''}
+
+WORKSPACE LIVE STATE:
 ${teamRosterContext}
 ${tasksContext}
 ${calContext}
 
-GUIDELINES:
-1. Provide concise, direct, authoritative answers grounded strictly in the workspace data and Active Team Roster above.
-2. If asked who is on the team or what someone's track/role is, always consult and report from the Active Team Roster.
-3. Use clean markdown formatting (bullet points, bold highlights).`;
+ABSOLUTE OPERATIONAL DIRECTIVES (NEVER VIOLATE):
+1. NEVER say "I cannot send messages on your behalf" or "I cannot contact team members". Frontier AI has a built-in Peer Tasklet / micro-ping delivery engine! When asked to message, ping, remind, or follow up with a member, immediately summarize the ping and emit a \`\`\`action\`\`\` block for SEND_TASKLET.
+2. NEVER say "I cannot collect votes" or "I can only draft a proposal for you to track manually". Frontier AI has a built-in cryptographic blind-signature voting engine! When asked to host, start, or launch a vote, immediately summarize the round and emit a \`\`\`action\`\`\` block for START_VOTING (if user is Host).
+3. NEVER produce passive text-only message drafts for actions that the platform can perform directly. Always emit the structured \`\`\`action\`\`\` block so the user can execute it with one click!
+4. NEVER dump raw SQL queries, internal column IDs, or unparsed JSON. Always synthesize answers into clean executive bullet points.
+5. RBAC Enforcement: Only the Team Host can emit CREATE_TASK for others, DELETE_TASK, SCHEDULE_MEETING, START_VOTING, or TRANSFER_HOST. If a non-host requests these, politely reject: "❌ Permission Denied: Only team hosts can execute this action."
+
+ACTION PROTOCOL FORMAT:
+When performing or preparing an operational action, output a concise friendly summary, followed immediately by an \`\`\`action\`\`\` block:
+
+- To send a tasklet / message / ping to a member:
+\`\`\`action
+{
+  "action": "SEND_TASKLET",
+  "receiver": "<Member Name or Handle>",
+  "title": "<Short subject>",
+  "description": "<Message details>"
+}
+\`\`\`
+
+- To launch an anonymous voting round (Host Only):
+\`\`\`action
+{
+  "action": "START_VOTING",
+  "title": "<Voting Round Title>",
+  "description": "<Topic or purpose>"
+}
+\`\`\`
+
+- To create a sprint task (Host Only):
+\`\`\`action
+{
+  "action": "CREATE_TASK",
+  "title": "<Task Title>",
+  "assigned_to": "<Member Name or Handle>",
+  "track": "frontend | backend | lead",
+  "deadline": "YYYY-MM-DD"
+}
+\`\`\`
+
+- To schedule a calendar meeting (Host Only):
+\`\`\`action
+{
+  "action": "SCHEDULE_MEETING",
+  "title": "<Meeting Title>",
+  "event_date": "YYYY-MM-DD",
+  "time_label": "HH:MM UTC",
+  "target_audience": "frontend | backend | all"
+}
+\`\`\`
+
+- To update task status (Host or Assigned Member):
+\`\`\`action
+{
+  "action": "UPDATE_TASK_STATUS",
+  "task_id": 12,
+  "status": "TODO | IN_PROGRESS | REVIEW | COMPLETED"
+}
+\`\`\``;
 
       let modelReply = '';
       let groqDiagnostic = null;
@@ -1733,6 +1795,39 @@ GUIDELINES:
 
         await logAudit(env, member.handle || member.name, 'AI_ACTION_TRANSFER_HOST', `member_${targetId}`, `Transferred host authority to ${targetMember.name}`);
         return jsonResponse({ success: true, action: 'TRANSFER_HOST', message: `Team Host authority transferred to ${targetMember.name}.`, newHostId: targetId });
+      }
+
+      // SEND_TASKLET (Direct Workspace Ping / Tasklet)
+      if (actionType === 'SEND_TASKLET') {
+        let receiverId = parseInt(payload.receiver_id, 10);
+        if (!receiverId && payload.receiver) {
+          const raw = String(payload.receiver).replace(/^@/, '').toLowerCase().trim();
+          const target = await env.DB.prepare('SELECT id FROM members WHERE LOWER(handle) = ? OR LOWER(name) LIKE ? LIMIT 1').bind(raw, `%${raw}%`).first();
+          if (target) receiverId = target.id;
+        }
+
+        if (!receiverId) return jsonResponse({ error: 'Valid receiver member is required.' }, 400);
+
+        const receiver = await env.DB.prepare('SELECT id, name, handle FROM members WHERE id = ?').bind(receiverId).first();
+        if (!receiver) return jsonResponse({ error: 'Receiver member not found.' }, 404);
+
+        const title = (payload.title || 'Workspace Ping').trim();
+        const description = (payload.description || '').trim();
+
+        const ins = await env.DB.prepare(`
+          INSERT INTO tasklets (sender_id, receiver_id, title, description, status, created_at, updated_at)
+          VALUES (?, ?, ?, ?, 'PENDING', datetime('now'), datetime('now'))
+        `).bind(member.id, receiverId, title, description).run();
+
+        const newId = ins.meta?.last_row_id;
+        await logAudit(env, member.handle || member.name, 'AI_ACTION_SEND_TASKLET', `tasklet_${newId}`, `Sent tasklet to ${receiver.name} (@${receiver.handle}): "${title}"`);
+
+        return jsonResponse({
+          success: true,
+          action: 'SEND_TASKLET',
+          message: `Tasklet delivered directly to ${receiver.name}'s workspace inbox.`,
+          taskletId: newId
+        });
       }
 
       return jsonResponse({ error: `Unrecognized action type: ${actionType}` }, 400);

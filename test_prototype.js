@@ -499,7 +499,53 @@ async function runTests() {
     }
     console.log(`[PASS] 17f. Round-Trip Transfer: Authority transferred back to original Host successfully.\n`);
 
-    console.log('🎉 ALL 33 ARCHITECTURE, SECURITY, GUARDRAIL, ACTION & AUTHORITY TRANSFER CHECKS PASSED PERFECTLY!');
+    // 18. Peer Tasklet Delivery & Active Action Response
+    // 18a. Execute SEND_TASKLET via /api/ai/execute
+    await testFetch(base + '/api/auth/login-as', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ github_numeric_id: 194890859 })
+    });
+
+    const taskletActionRes = await testFetch(base + '/api/ai/execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'SEND_TASKLET',
+        payload: {
+          receiver: 'test_dev',
+          title: 'Action Required: Focus on Deliverables',
+          description: 'Please prioritize sprint backlog and close pending tasks.'
+        }
+      })
+    });
+    if (taskletActionRes.status !== 200) {
+      throw new Error(`SEND_TASKLET failed with HTTP ${taskletActionRes.status}`);
+    }
+    const taskletData = await taskletActionRes.json();
+    if (!taskletData.taskletId) throw new Error('SEND_TASKLET response missing taskletId');
+    const createdTasklet = db.prepare('SELECT * FROM tasklets WHERE id = ?').get(taskletData.taskletId);
+    if (!createdTasklet || createdTasklet.receiver_id !== 2) {
+      throw new Error('Tasklet not recorded in SQLite DB for receiver #2!');
+    }
+    console.log(`[PASS] 18a. Action-Driven Delivery: Host successfully delivered tasklet #${taskletData.taskletId} to test_dev inbox.`);
+
+    // 18b. Verify Oracle never outputs passive deflections ("I cannot send messages")
+    const pingPromptRes = await testFetch(base + '/api/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'ping test_dev to finish the frontend PR' })
+    });
+    const pingPromptData = await pingPromptRes.json();
+    if (pingPromptData.reply.includes('I cannot send direct messages')) {
+      throw new Error('Deflection Violation: Oracle reverted to passive "I cannot send messages" text!');
+    }
+    if (!pingPromptData.reply.includes('SEND_TASKLET')) {
+      throw new Error('Action Envelope Missing: Oracle did not emit SEND_TASKLET action envelope!');
+    }
+    console.log(`[PASS] 18b. Active Operational Agency: Oracle prepared actionable SEND_TASKLET action envelope without passive deflection.\n`);
+
+    console.log('🎉 ALL 35 ARCHITECTURE, SECURITY, GUARDRAIL, ACTION, TRANSFER & TASKLET CHECKS PASSED PERFECTLY!');
     process.exit(0);
 
   } catch (err) {

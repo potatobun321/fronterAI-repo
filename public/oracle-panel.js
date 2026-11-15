@@ -459,6 +459,12 @@ export const OracleChatEngine = {
           <li><strong>Target Successor:</strong> ${actionPayload.target_name || '#' + actionPayload.target_member_id}</li>
           <li><strong>Effect:</strong> You will immediately lose all administrative and host capabilities.</li>
         </ul>`;
+      } else if (actionPayload.action === 'SEND_TASKLET') {
+        details = `<ul>
+          <li><strong>Recipient:</strong> ${actionPayload.receiver_name || actionPayload.receiver || '#' + actionPayload.receiver_id}</li>
+          <li><strong>Subject:</strong> ${actionPayload.title}</li>
+          ${actionPayload.description ? `<li><strong>Message:</strong> <em>${actionPayload.description}</em></li>` : ''}
+        </ul>`;
       } else {
         details = `<pre style="font-size:11px;">${JSON.stringify(actionPayload, null, 2)}</pre>`;
       }
