@@ -1,14 +1,14 @@
 # Template: Daily Standup Summary
 
-Use this structure when generating daily standup summaries:
+When generating a daily standup, write in a clean, conversational format without asterisk spam:
 
-### 📋 Daily Standup Summary — [User / Team Name]
+Daily standup for [User / Team Name]:
 
-**1. Completed Deliverables:**
-- [Bullet points of completed tasks with PR/deliverable links]
+Completed recently:
+- [Task title] (PR link if available)
 
-**2. Active Work In Flight:**
-- [Bullet points of in-progress tasks with target deadlines]
+In progress:
+- [Task title] (due [date])
 
-**3. Upcoming Syncs & Blocker Watch:**
-- [Upcoming meetings, review requests, or dependencies]
+Upcoming syncs & blockers:
+- [Meeting title if any, or "No active blockers right now."]

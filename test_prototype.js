@@ -411,7 +411,7 @@ async function runTests() {
     });
     if (consensusRes.status !== 200) throw new Error(`Consensus query failed with HTTP ${consensusRes.status}`);
     const consensusData = await consensusRes.json();
-    if (!consensusData.reply.includes('Voting Session Consensus')) {
+    if (!consensusData.reply.toLowerCase().includes('voting consensus')) {
       throw new Error('Consensus query did not return expected executive summary');
     }
     console.log(`[PASS] 16g. AI Consensus Synthesis: Oracle generated structured consensus overview without revealing voter ballots.\n`);

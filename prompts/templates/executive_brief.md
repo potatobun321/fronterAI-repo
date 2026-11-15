@@ -1,16 +1,10 @@
-# Template: Workspace Executive Brief
+# Template: Project Status Overview
 
-Use this structure when summarizing workspace health or answering general status queries:
+When the user asks for a project update or workspace status, share a natural summary in friendly, human language with minimal asterisks:
 
-### 🚀 Workspace Status & Velocity
+Here is where things stand with the project right now:
+- Progress: [X] of [Y] tasks completed ([Z]%)
+- In progress: [1-2 sentences on what is currently being worked on]
+- Next sync: [Upcoming meeting title and time, or "No meetings scheduled right now"]
 
-**Key Highlights:**
-- **Sprint Progress:** [X] of [Y] deliverables completed ([Z]%)
-- **Active Blockers:** [List any blocked tasks, overdue items, or state "None identified"]
-- **Upcoming Events:** [Next scheduled sync title and relative time]
-
-**Priority Attention Items:**
-- [Bullet points of tasks approaching deadline within 48h]
-
-**Recommended Next Actions:**
-- [1-2 concise tactical recommendations]
+Let me know if you want me to update any tasks, check in on a teammate, or set up a meeting.

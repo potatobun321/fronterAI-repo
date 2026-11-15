@@ -528,46 +528,55 @@ ${JSON.stringify(actionPayload, null, 2)}
     const upcomingEvents = db.prepare("SELECT title, event_date, time_label FROM calendar_events ORDER BY event_date ASC LIMIT 2").all();
 
     const completedText = completedTasks.length > 0
-      ? completedTasks.map(t => `• **${t.title}**${t.deliverable_url ? ` ([PR Link](${t.deliverable_url}))` : ''}`).join('\n')
-      : '• No deliverables finalized yet.';
+      ? completedTasks.map(t => `- ${t.title}${t.deliverable_url ? ` ([PR Link](${t.deliverable_url}))` : ''}`).join('\n')
+      : '- No deliverables finalized yet.';
 
     const inProgressText = inProgressTasks.length > 0
-      ? inProgressTasks.map(t => `• **${t.title}** (Target deadline: ${t.deadline || 'TBD'})`).join('\n')
-      : '• All assigned sprint deliverables currently up to date.';
+      ? inProgressTasks.map(t => `- ${t.title}${t.deadline ? ` (due ${t.deadline})` : ''}`).join('\n')
+      : '- All assigned sprint deliverables currently up to date.';
 
     const blockersText = upcomingEvents.length > 0
-      ? `• Upcoming Sync: **${upcomingEvents[0].title}** (${upcomingEvents[0].event_date} at ${upcomingEvents[0].time_label})`
-      : '• No immediate blockers or conflicting dependencies.';
+      ? `- Next sync: ${upcomingEvents[0].title} on ${upcomingEvents[0].event_date} at ${upcomingEvents[0].time_label}`
+      : '- No immediate blockers or conflicting dependencies.';
 
-    return `### 📋 Daily Standup Summary — ${currentUser.name}\n\n**1. Completed Deliverables:**\n${completedText}\n\n**2. Current Focus:**\n${inProgressText}\n\n**3. Syncs & Dependencies:**\n${blockersText}\n\n*(Generated dynamically by Frontier Oracle)*`;
+    return `Here is the daily standup for ${currentUser.name}:
+
+Completed recently:
+${completedText}
+
+In progress:
+${inProgressText}
+
+Upcoming syncs & blockers:
+${blockersText}`;
   }
 
   // 6. Query: Tasks
   if (/task|todo|progress|deliverable/.test(text)) {
     const tasks = db.prepare('SELECT title, status, deadline FROM tasks').all();
     if (tasks.length === 0) return 'There are currently no tasks allocated in the workspace.';
-    const list = tasks.map(t => `• **[${t.status}]** ${t.title} *(Due: ${t.deadline || 'TBD'})*`).join('\n');
-    return `### Current Workspace Tasks\n\n${list}\n\n*(Tip: You can ask Oracle to create or update tasks directly in this chat!)*`;
+    const list = tasks.map(t => `- [${t.status}] ${t.title}${t.deadline ? ` (due ${t.deadline})` : ''}`).join('\n');
+    return `Current workspace tasks:\n\n${list}\n\nLet me know if you would like me to create or update any of these tasks.`;
   }
 
   // 7. Query: Meetings
   if (/meet|call|sync|google|bridge/.test(text)) {
     const events = db.prepare('SELECT title, event_date, time_label, target_audience FROM calendar_events').all();
-    if (events.length === 0) return 'There are no active or scheduled meetings at this time.';
-    const list = events.map(e => `• **${e.title}** on ${e.event_date} at ${e.time_label} (${e.target_audience})`).join('\n');
-    return `### Scheduled Syncs & Meeting Bridges\n\n${list}\n\n*To join, click the join button in your dashboard to route through the masked gateway.*`;
+    if (events.length === 0) return 'There are no active or scheduled meetings right now.';
+    const list = events.map(e => `- ${e.title} on ${e.event_date} at ${e.time_label} (${e.target_audience})`).join('\n');
+    return `Scheduled syncs:\n\n${list}\n\nTo join, click the join button on your dashboard to route through the masked companion bridge.`;
   }
 
   // 8. Query: Who are you / Help
   if (/who are you|oracle|help/.test(text)) {
-    return `👋 **Hello ${currentUser.name}!** I am **Frontier Oracle**, your operational AI assistant.
+    return `Hey ${currentUser.name}! I am Frontier Oracle, your engineering teammate and workspace assistant.
 
-**What I Can Do:**
-- **Answer Questions:** Real-time team velocity, tasks, meetings, voting consensus, and governance.
-- **Execute Operational Actions:**
-  ${currentUser.is_host ? '- Create or delete sprint tasks (`create task: <title>`)\n  - Schedule calendar syncs (`schedule meeting: <title>`)\n  - Host voting rounds (`host voting: <title>`)\n  - Sign off or deny governance tickets (`approve ticket #<id>`)' : '- Update status of your assigned tasks (`update task #<id> to completed`)\n  - View your personalized standup and deliverables'}
+Here is what I can help you with:
+- Project status: sprint progress, tasks in flight, and upcoming meetings
+- Operational actions:
+  ${currentUser.is_host ? '- Create or delete tasks (e.g. "create task: Review auth PR")\n  - Ping teammates with tasklets (e.g. "ping Dheeraj about backend deliverables")\n  - Schedule calendar syncs (e.g. "schedule meeting: Sprint Planning")\n  - Host peer voting sessions (e.g. "host voting: Sprint Review")' : '- Update your assigned task statuses (e.g. "mark task #2 as completed")\n  - Send tasklets to teammates\n  - Generate your personal standup update'}
 
-Ask a question or issue a command above to get started!`;
+Feel free to ask a question or tell me what to do!`;
   }
 
   // 9. Query: Voting & Consensus Analysis
@@ -580,16 +589,16 @@ Ask a question or issue a command above to get started!`;
     const turnoutPct = Math.round(((ballotsCount?.count || 0) / totalEligible) * 100);
     const avgScore = ballotsCount?.avg_rating ? Number(ballotsCount.avg_rating).toFixed(1) : 'N/A';
 
-    return `### 🗳️ Voting Session Consensus — ${session.title}
+    return `Voting consensus overview for ${session.title}:
 
-**Session Status:** ${session.status} ${session.status === 'ACTIVE' ? '(Ongoing Round)' : '(Closed & Tallied)'}
-- **Turnout Rate:** ${ballotsCount?.count || 0}/${totalEligible} ballots cast (**${turnoutPct}% participation**)
-- **Consensus Score:** **${avgScore}/5.0** average peer rating
+Status: ${session.status} ${session.status === 'ACTIVE' ? '(round currently open)' : '(closed and tallied)'}
+- Turnout: ${ballotsCount?.count || 0} of ${totalEligible} ballots cast (${turnoutPct}% participation)
+- Consensus score: ${avgScore}/5.0 average rating
 
-*(Note: Individual ballots are cryptographically isolated via blind tokens to preserve full voter anonymity.)*`;
+Individual ballots remain strictly anonymous using blind signature tokens.`;
   }
 
-  // 10. Default Executive Brief (Structured, never dumps raw SQL)
+  // 10. Default Project Overview (Natural, conversational tone)
   const taskStats = db.prepare(`
     SELECT 
       COUNT(*) as total,
@@ -603,18 +612,16 @@ Ask a question or issue a command above to get started!`;
   const velocityPct = taskStats.total > 0 ? Math.round((taskStats.completed / taskStats.total) * 100) : 0;
   const events = db.prepare('SELECT title, event_date, time_label FROM calendar_events ORDER BY event_date ASC LIMIT 2').all();
   const upcomingBrief = events.length > 0
-    ? events.map(e => `• **${e.title}** (${e.event_date} at ${e.time_label})`).join('\n')
-    : '• No immediate meetings scheduled.';
+    ? events.map(e => `- ${e.title} on ${e.event_date} at ${e.time_label}`).join('\n')
+    : '- No upcoming meetings scheduled right now.';
 
-  return `### 🚀 Frontier Workspace Executive Brief
+  return `Here is a quick overview of where things stand with the project:
 
-**Sprint Velocity & Health:**
-- **Progress:** ${taskStats.completed}/${taskStats.total} deliverables finalized (**${velocityPct}%**)
-- **In Flight:** ${taskStats.in_progress} in progress, ${taskStats.review} in review, ${taskStats.todo} in backlog
+Sprint progress: ${taskStats.completed} of ${taskStats.total} tasks completed (${velocityPct}%)
+Work in flight: ${taskStats.in_progress} in progress, ${taskStats.review} in review, ${taskStats.todo} in backlog
 
-**Upcoming Syncs:**
+Upcoming syncs:
 ${upcomingBrief}
 
-**Operational Assistant Ready:**
-Ask me for a **daily standup**, project status, or tell me to **create a task** or **schedule a meeting**.`;
+Let me know if you would like me to set up a task, ping a teammate, or schedule a meeting.`;
 }
