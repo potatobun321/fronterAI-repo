@@ -97,5 +97,40 @@ export async function handleGovernanceRoutes(req, res, pathname, method) {
     });
   }
 
+  if (pathname.startsWith('/api/tickets/') && pathname.endsWith('/deny') && method === 'POST') {
+    const currentUser = getSessionUser(req);
+    if (!currentUser) return sendJson(res, 401, { error: 'Authentication required' });
+    const ticketId = parseInt(pathname.split('/')[3], 10);
+    const ticket = db.prepare('SELECT * FROM access_tickets WHERE id = ?').get(ticketId);
+
+    if (!ticket) return sendJson(res, 404, { error: 'Ticket not found' });
+    if (ticket.status !== 'PENDING_APPROVAL') {
+      return sendJson(res, 400, { error: `Ticket is already ${ticket.status}` });
+    }
+
+    if (ticket.requester_id === currentUser.id && !currentUser.is_host) {
+      return sendJson(res, 403, { error: 'You cannot deny your own ticket as non-host.' });
+    }
+
+    const now = new Date().toISOString();
+    db.prepare(`
+      UPDATE access_tickets
+      SET status = 'DENIED',
+          approver_id = ?,
+          resolved_at = ?
+      WHERE id = ?
+    `).run(currentUser.id, now, ticketId);
+
+    logAudit(
+      currentUser.handle,
+      'DENY_TICKET',
+      `ticket_${ticketId}`,
+      `Denied access ticket requested by member #${ticket.requester_id}.`,
+      'DENIED'
+    );
+
+    return sendJson(res, 200, { message: 'Ticket denied.' });
+  }
+
   return false;
 }

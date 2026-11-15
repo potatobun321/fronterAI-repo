@@ -2,6 +2,38 @@ import { db, logAudit } from '../db.js';
 import { getSessionUser } from '../middleware/session.js';
 import { parseBody, sendJson } from '../middleware/httpHelpers.js';
 
+export function purgeMemberCascade(memberId, database = db) {
+  // 1. Sessions
+  try { database.prepare('DELETE FROM sessions WHERE member_id = ?').run(memberId); } catch (e) { }
+  // 2. AI Messages & Threads
+  try {
+    database.prepare('DELETE FROM ai_messages WHERE thread_id IN (SELECT id FROM ai_threads WHERE member_id = ?)').run(memberId);
+    database.prepare('DELETE FROM ai_threads WHERE member_id = ?').run(memberId);
+  } catch (e) { }
+  // 3. Member Memories
+  try { database.prepare('DELETE FROM member_memories WHERE member_id = ?').run(memberId); } catch (e) { }
+  // 4. Voting & Ballots (Crucial: Ballots reference voting_options)
+  try { database.prepare('DELETE FROM ballots WHERE option_id IN (SELECT id FROM voting_options WHERE candidate_member_id = ?)').run(memberId); } catch (e) { }
+  try { database.prepare('UPDATE ballots SET candidate_member_id = NULL WHERE candidate_member_id = ?').run(memberId); } catch (e) { }
+  try { database.prepare('DELETE FROM voting_options WHERE candidate_member_id = ?').run(memberId); } catch (e) { }
+  try { database.prepare('DELETE FROM voting_eligibility WHERE member_id = ?').run(memberId); } catch (e) { }
+  try { database.prepare('UPDATE voting_sessions SET target_member_id = NULL WHERE target_member_id = ?').run(memberId); } catch (e) { }
+  try { database.prepare('UPDATE voting_sessions SET created_by = 1 WHERE created_by = ?').run(memberId); } catch (e) { }
+  // 5. Tasks (Detach assignee)
+  try { database.prepare('UPDATE tasks SET assignee_id = NULL WHERE assignee_id = ?').run(memberId); } catch (e) { }
+  // 6. Calendar Events (Detach assignee, reassign creator to Host)
+  try {
+    database.prepare('UPDATE calendar_events SET assignee_id = NULL WHERE assignee_id = ?').run(memberId);
+    database.prepare('UPDATE calendar_events SET created_by = 1 WHERE created_by = ?').run(memberId);
+  } catch (e) { }
+  // 7. Tasklets
+  try { database.prepare('DELETE FROM tasklets WHERE sender_id = ? OR receiver_id = ?').run(memberId, memberId); } catch (e) { }
+  // 8. Access Tickets
+  try { database.prepare('DELETE FROM access_tickets WHERE requester_id = ? OR approver_id = ?').run(memberId, memberId); } catch (e) { }
+  // 9. Completely purge member from database
+  database.prepare('DELETE FROM members WHERE id = ?').run(memberId);
+}
+
 export async function handleMemberRoutes(req, res, pathname, method) {
   if (pathname === '/api/members' && method === 'GET') {
     const currentUser = getSessionUser(req);
@@ -104,36 +136,8 @@ export async function handleMemberRoutes(req, res, pathname, method) {
     if (!targetMember) {
       return sendJson(res, 404, { error: 'Member not found.' });
     }
-    // Complete cascade purge in strict dependency order:
-    // 1. Sessions
-    try { db.prepare('DELETE FROM sessions WHERE member_id = ?').run(memberId); } catch (e) { }
-    // 2. AI Messages & Threads
-    try {
-      db.prepare('DELETE FROM ai_messages WHERE thread_id IN (SELECT id FROM ai_threads WHERE member_id = ?)').run(memberId);
-      db.prepare('DELETE FROM ai_threads WHERE member_id = ?').run(memberId);
-    } catch (e) { }
-    // 3. Member Memories
-    try { db.prepare('DELETE FROM member_memories WHERE member_id = ?').run(memberId); } catch (e) { }
-    // 4. Voting & Ballots (Crucial: Ballots reference voting_options)
-    try { db.prepare('DELETE FROM ballots WHERE option_id IN (SELECT id FROM voting_options WHERE candidate_member_id = ?)').run(memberId); } catch (e) { }
-    try { db.prepare('UPDATE ballots SET candidate_member_id = NULL WHERE candidate_member_id = ?').run(memberId); } catch (e) { }
-    try { db.prepare('DELETE FROM voting_options WHERE candidate_member_id = ?').run(memberId); } catch (e) { }
-    try { db.prepare('DELETE FROM voting_eligibility WHERE member_id = ?').run(memberId); } catch (e) { }
-    try { db.prepare('UPDATE voting_sessions SET target_member_id = NULL WHERE target_member_id = ?').run(memberId); } catch (e) { }
-    try { db.prepare('UPDATE voting_sessions SET created_by = 1 WHERE created_by = ?').run(memberId); } catch (e) { }
-    // 5. Tasks (Detach assignee)
-    try { db.prepare('UPDATE tasks SET assignee_id = NULL WHERE assignee_id = ?').run(memberId); } catch (e) { }
-    // 6. Calendar Events (Detach assignee, reassign creator to Host)
-    try {
-      db.prepare('UPDATE calendar_events SET assignee_id = NULL WHERE assignee_id = ?').run(memberId);
-      db.prepare('UPDATE calendar_events SET created_by = 1 WHERE created_by = ?').run(memberId);
-    } catch (e) { }
-    // 7. Tasklets
-    try { db.prepare('DELETE FROM tasklets WHERE sender_id = ? OR receiver_id = ?').run(memberId, memberId); } catch (e) { }
-    // 8. Access Tickets
-    try { db.prepare('DELETE FROM access_tickets WHERE requester_id = ? OR approver_id = ?').run(memberId, memberId); } catch (e) { }
-    // 9. Completely purge member from database
-    db.prepare('DELETE FROM members WHERE id = ?').run(memberId);
+    // Complete cascade purge via unified helper
+    purgeMemberCascade(memberId, db);
 
     logAudit(currentUser.handle, 'MEMBER_REMOVED', 'members', `Permanently removed member @${targetMember.handle} (${targetMember.name}, ID: ${memberId}) from allowlist.`, 'SUCCESS');
     return sendJson(res, 200, { message: `Member @${targetMember.handle} permanently removed.` });
@@ -151,7 +155,8 @@ export async function handleMemberRoutes(req, res, pathname, method) {
     }
     const body = await parseBody(req);
     const role = (body && body.role && body.role.trim()) || (targetMember.role === 'Pending Review' ? 'Engineer' : targetMember.role);
-    const validTrack = (body && body.team_track && ['frontend', 'backend', 'lead'].includes(body.team_track)) ? body.team_track : (targetMember.team_track === 'unassigned' ? 'backend' : targetMember.team_track);
+    const candidateTrack = (body && body.team_track && String(body.team_track).trim().toLowerCase());
+    const validTrack = (candidateTrack && /^[a-z0-9_-]{2,20}$/.test(candidateTrack)) ? candidateTrack : (targetMember.team_track === 'unassigned' ? 'backend' : targetMember.team_track);
 
     db.prepare('UPDATE members SET is_allowed = 1, role = ?, team_track = ? WHERE id = ?').run(role, validTrack, memberId);
 
@@ -179,36 +184,8 @@ export async function handleMemberRoutes(req, res, pathname, method) {
     if (targetMember.is_host) {
       return sendJson(res, 400, { error: 'Host cannot be rejected.' });
     }
-    // Complete cascade purge in strict dependency order:
-    // 1. Sessions
-    try { db.prepare('DELETE FROM sessions WHERE member_id = ?').run(memberId); } catch (e) { }
-    // 2. AI Messages & Threads
-    try {
-      db.prepare('DELETE FROM ai_messages WHERE thread_id IN (SELECT id FROM ai_threads WHERE member_id = ?)').run(memberId);
-      db.prepare('DELETE FROM ai_threads WHERE member_id = ?').run(memberId);
-    } catch (e) { }
-    // 3. Member Memories
-    try { db.prepare('DELETE FROM member_memories WHERE member_id = ?').run(memberId); } catch (e) { }
-    // 4. Voting & Ballots (Crucial: Ballots reference voting_options)
-    try { db.prepare('DELETE FROM ballots WHERE option_id IN (SELECT id FROM voting_options WHERE candidate_member_id = ?)').run(memberId); } catch (e) { }
-    try { db.prepare('UPDATE ballots SET candidate_member_id = NULL WHERE candidate_member_id = ?').run(memberId); } catch (e) { }
-    try { db.prepare('DELETE FROM voting_options WHERE candidate_member_id = ?').run(memberId); } catch (e) { }
-    try { db.prepare('DELETE FROM voting_eligibility WHERE member_id = ?').run(memberId); } catch (e) { }
-    try { db.prepare('UPDATE voting_sessions SET target_member_id = NULL WHERE target_member_id = ?').run(memberId); } catch (e) { }
-    try { db.prepare('UPDATE voting_sessions SET created_by = 1 WHERE created_by = ?').run(memberId); } catch (e) { }
-    // 5. Tasks (Detach assignee)
-    try { db.prepare('UPDATE tasks SET assignee_id = NULL WHERE assignee_id = ?').run(memberId); } catch (e) { }
-    // 6. Calendar Events (Detach assignee, reassign creator to Host)
-    try {
-      db.prepare('UPDATE calendar_events SET assignee_id = NULL WHERE assignee_id = ?').run(memberId);
-      db.prepare('UPDATE calendar_events SET created_by = 1 WHERE created_by = ?').run(memberId);
-    } catch (e) { }
-    // 7. Tasklets
-    try { db.prepare('DELETE FROM tasklets WHERE sender_id = ? OR receiver_id = ?').run(memberId, memberId); } catch (e) { }
-    // 8. Access Tickets
-    try { db.prepare('DELETE FROM access_tickets WHERE requester_id = ? OR approver_id = ?').run(memberId, memberId); } catch (e) { }
-    // 9. Completely purge member from database
-    db.prepare('DELETE FROM members WHERE id = ?').run(memberId);
+    // Complete cascade purge via unified helper
+    purgeMemberCascade(memberId, db);
 
     logAudit(
       currentUser.handle,

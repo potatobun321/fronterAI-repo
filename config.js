@@ -22,6 +22,10 @@ if (fs.existsSync(envPath)) {
 
 export const PORT = process.env.PORT || 3030;
 export const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+export const HOST_EMAIL = process.env.HOST_EMAIL || 'kart123.san@gmail.com';
+export const HOST_GITHUB_ID = process.env.HOST_GITHUB_ID ? parseInt(process.env.HOST_GITHUB_ID, 10) : 194890859;
+export const HOST_HANDLE = process.env.HOST_HANDLE || 'kart123.san';
+export const HOST_NAME = process.env.HOST_NAME || 'Kartikay';
 export const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 export const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 export const VOTING_SECRET = process.env.VOTING_SECRET || '';

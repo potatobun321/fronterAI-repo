@@ -40,12 +40,13 @@ export async function handleTaskRoutes(req, res, pathname, method) {
     `);
 
     const now = new Date().toISOString();
+    const defaultDeadline = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
     const result = insert.run(
       title,
       description || '',
       track || 'backend',
       assignee_id || currentUser.id,
-      deadline || '2026-10-25',
+      deadline || defaultDeadline,
       deliverable_url || '',
       now
     );
@@ -117,6 +118,26 @@ export async function handleTaskRoutes(req, res, pathname, method) {
     );
 
     return sendJson(res, 200, { message: 'Task progress / deliverable updated', nextVersion });
+  }
+
+  if (pathname.startsWith('/api/tasks/') && method === 'DELETE') {
+    const currentUser = getSessionUser(req);
+    if (!currentUser || !currentUser.is_host) {
+      return sendJson(res, 403, { error: 'Permission Denied: Only Team Host can delete tasks.' });
+    }
+    const taskId = parseInt(pathname.split('/')[3], 10);
+    const current = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId);
+    if (!current) return sendJson(res, 404, { error: 'Task not found' });
+
+    db.prepare('DELETE FROM tasks WHERE id = ?').run(taskId);
+    logAudit(
+      currentUser.handle,
+      'DELETE_TASK',
+      `task_${taskId}`,
+      `Host deleted task #${taskId} ("${current.title}")`,
+      'SUCCESS'
+    );
+    return sendJson(res, 200, { message: 'Task deleted successfully' });
   }
 
   return false;

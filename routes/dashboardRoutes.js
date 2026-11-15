@@ -47,8 +47,11 @@ export async function handleDashboardRoutes(req, res, pathname, method) {
     });
 
     const liveMeeting = myEvents.find(ev => ev.is_live === 1 && (ev.event_type === 'MEETING' || ev.event_type === 'RETRO')) || null;
-    const activeVote = db.prepare('SELECT * FROM voting_sessions WHERE id = 1').get();
-    const hasVoted = db.prepare('SELECT * FROM voting_eligibility WHERE session_id = 1 AND member_id = ?').get(currentUser.id);
+    const activeVote = db.prepare("SELECT * FROM voting_sessions WHERE status = 'ACTIVE' ORDER BY id DESC LIMIT 1").get() ||
+                       db.prepare('SELECT * FROM voting_sessions ORDER BY id DESC LIMIT 1').get() || null;
+    const hasVoted = (activeVote && currentUser)
+      ? db.prepare('SELECT * FROM voting_eligibility WHERE session_id = ? AND member_id = ?').get(activeVote.id, currentUser.id)
+      : null;
 
     const completed = myTasks.filter(t => t.status === 'COMPLETED').length;
     const inProgress = myTasks.filter(t => t.status === 'IN_PROGRESS').length;
