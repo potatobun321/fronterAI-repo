@@ -118,18 +118,14 @@ export async function handleAuthRoutes(req, res, pathname, method, urlObj) {
       // Check allowlist:
       let member = null;
       const hostEmailClean = (HOST_EMAIL || '').toLowerCase().trim();
-      const hostUserPrefix = hostEmailClean.split('@')[0];
-      const isHostEmail = googleEmail && (
-        googleEmail.toLowerCase() === hostEmailClean ||
-        (hostUserPrefix && googleEmail.toLowerCase().includes(hostUserPrefix))
-      );
+      const isHostEmail = Boolean(googleEmail && hostEmailClean && googleEmail.toLowerCase() === hostEmailClean);
 
-      // 1. Host Priority Check: Host is always recognized and guaranteed active access
+      // 1. Host Priority Check: Host is recognized by exact host email
       if (isHostEmail) {
-        member = db.prepare('SELECT * FROM members WHERE id = 1').get();
+        member = db.prepare('SELECT * FROM members WHERE is_host = 1 OR id = 1').get();
         if (member) {
-          db.prepare('UPDATE members SET email = ?, google_sub = ?, is_host = 1, is_allowed = 1 WHERE id = 1').run(googleEmail, googleSub);
-          member = db.prepare('SELECT * FROM members WHERE id = 1').get();
+          db.prepare('UPDATE members SET email = ?, google_sub = ?, is_host = 1, is_allowed = 1 WHERE id = ?').run(googleEmail, googleSub, member.id);
+          member = db.prepare('SELECT * FROM members WHERE id = ?').get(member.id);
         }
       }
 
@@ -157,12 +153,11 @@ export async function handleAuthRoutes(req, res, pathname, method, urlObj) {
           handle = `${cleanHandle}_${Math.floor(100 + Math.random() * 900)}`;
         }
         const displayName = googleUser.name || googleUser.given_name || cleanHandle;
-        const numericId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 100000);
 
         db.prepare(`
-          INSERT INTO members (github_numeric_id, handle, name, role, team_track, email, google_sub, is_host, is_allowed)
-          VALUES (?, ?, ?, 'Pending Review', 'unassigned', ?, ?, 0, 0)
-        `).run(numericId, handle, displayName, googleEmail, googleSub);
+          INSERT INTO members (handle, name, role, team_track, email, google_sub, is_host, is_allowed)
+          VALUES (?, ?, 'Pending Review', 'unassigned', ?, ?, 0, 0)
+        `).run(handle, displayName, googleEmail, googleSub);
 
         logAudit(
           `google_${googleEmail}`,
@@ -235,13 +230,12 @@ export async function handleAuthRoutes(req, res, pathname, method, urlObj) {
         handle = `${cleanHandle}_${Math.floor(100 + Math.random() * 900)}`;
       }
       const displayName = cleanHandle;
-      const numericId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 100000);
       const googleSub = 'sim_' + Date.now();
 
       db.prepare(`
-        INSERT INTO members (github_numeric_id, handle, name, role, team_track, email, google_sub, is_host, is_allowed)
-        VALUES (?, ?, ?, 'Pending Review', 'unassigned', ?, ?, 0, 0)
-      `).run(numericId, handle, displayName, email, googleSub);
+        INSERT INTO members (handle, name, role, team_track, email, google_sub, is_host, is_allowed)
+        VALUES (?, ?, 'Pending Review', 'unassigned', ?, ?, 0, 0)
+      `).run(handle, displayName, email, googleSub);
 
       logAudit(
         `sim_${email}`,
@@ -306,16 +300,23 @@ export async function handleAuthRoutes(req, res, pathname, method, urlObj) {
       return sendJson(res, 404, { error: 'Not found' });
     }
     const body = await parseBody(req);
-    const { github_numeric_id } = body;
+    const { github_numeric_id, email, member_id } = body;
 
-    const member = db.prepare('SELECT * FROM members WHERE github_numeric_id = ?').get(github_numeric_id);
+    let member = null;
+    if (github_numeric_id !== undefined && github_numeric_id !== null) {
+      member = db.prepare('SELECT * FROM members WHERE github_numeric_id = ?').get(github_numeric_id);
+    } else if (email) {
+      member = db.prepare('SELECT * FROM members WHERE LOWER(email) = LOWER(?)').get(email);
+    } else if (member_id) {
+      member = db.prepare('SELECT * FROM members WHERE id = ?').get(member_id);
+    }
 
     if (!member || !member.is_allowed) {
       logAudit(
-        `gh_${github_numeric_id || 'unknown'}`,
+        `auth_${github_numeric_id || email || member_id || 'unknown'}`,
         'LOGIN_ATTEMPT',
         'auth_allowlist',
-        `Unauthorized login attempt from GitHub ID ${github_numeric_id}. Rejected by allowlist policy.`,
+        `Unauthorized login attempt from ${github_numeric_id || email || member_id}. Rejected by allowlist policy.`,
         'DENIED'
       );
       return sendJson(res, 403, {

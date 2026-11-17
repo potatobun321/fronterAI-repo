@@ -298,20 +298,16 @@ export async function onRequest(context) {
       // Allowlist check:
       let member = null;
       const hostEmailClean = ((env && env.HOST_EMAIL) || 'kart123.san@gmail.com').toLowerCase().trim();
-      const hostUserPrefix = hostEmailClean.split('@')[0];
-      const isHostEmail = googleEmail && (
-        googleEmail.toLowerCase() === hostEmailClean ||
-        (hostUserPrefix && googleEmail.toLowerCase().includes(hostUserPrefix))
-      );
+      const isHostEmail = Boolean(googleEmail && hostEmailClean && googleEmail.toLowerCase() === hostEmailClean);
 
-      // 1. Host Priority Check: Host is always recognized and guaranteed active access
+      // 1. Host Priority Check: Host is recognized by exact host email
       if (isHostEmail) {
         try {
-          member = await env.DB.prepare('SELECT * FROM members WHERE id = 1').first();
+          member = await env.DB.prepare('SELECT * FROM members WHERE is_host = 1 OR id = 1').first();
           if (member) {
             try {
-              await env.DB.prepare('UPDATE members SET email = ?, google_sub = ?, is_host = 1, is_allowed = 1 WHERE id = 1').bind(googleEmail, googleSub).run();
-              member = await env.DB.prepare('SELECT * FROM members WHERE id = 1').first();
+              await env.DB.prepare('UPDATE members SET email = ?, google_sub = ?, is_host = 1, is_allowed = 1 WHERE id = ?').bind(googleEmail, googleSub, member.id).run();
+              member = await env.DB.prepare('SELECT * FROM members WHERE id = ?').bind(member.id).first();
             } catch (err) { }
           }
         } catch (e) { }
@@ -340,17 +336,17 @@ export async function onRequest(context) {
       if (!member) {
         const cleanHandle = (googleEmail.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 30);
         const displayName = googleUser.name || googleUser.given_name || cleanHandle;
-        const numericId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 100000);
         try {
           await env.DB.prepare(`
-            INSERT INTO members (github_numeric_id, handle, name, role, team_track, email, google_sub, is_host, is_allowed)
-            VALUES (?, ?, ?, 'Pending Review', 'unassigned', ?, ?, 0, 0)
-          `).bind(numericId, cleanHandle, displayName, googleEmail, googleSub).run();
+            INSERT INTO members (handle, name, role, team_track, email, google_sub, is_host, is_allowed)
+            VALUES (?, ?, 'Pending Review', 'unassigned', ?, ?, 0, 0)
+          `).bind(cleanHandle, displayName, googleEmail, googleSub).run();
         } catch (e) {
           try {
+            // Defensive fallback for legacy D1 tables with strict NOT NULL github_numeric_id
             await env.DB.prepare(`
-              INSERT INTO members (handle, name, role, team_track, email, google_sub, is_host, is_allowed)
-              VALUES (?, ?, 'Pending Review', 'unassigned', ?, ?, 0, 0)
+              INSERT INTO members (github_numeric_id, handle, name, role, team_track, email, google_sub, is_host, is_allowed)
+              VALUES (0, ?, ?, 'Pending Review', 'unassigned', ?, ?, 0, 0)
             `).bind(cleanHandle, displayName, googleEmail, googleSub).run();
           } catch (e2) { }
         }
@@ -568,9 +564,17 @@ export async function onRequest(context) {
       const member = await getAuthMember(request, env);
       if (!member || !member.is_host) return jsonResponse({ error: 'Only Team Lead can register members' }, 403);
       const { handle, name, role, team_track, email } = await request.json();
-      const res = await env.DB.prepare(
-        'INSERT INTO members (handle, name, role, team_track, email, is_host, is_allowed) VALUES (?, ?, ?, ?, ?, 0, 1)'
-      ).bind(handle, name, role || 'Engineer', team_track || 'backend', email || null).run();
+      let res;
+      try {
+        res = await env.DB.prepare(
+          'INSERT INTO members (handle, name, role, team_track, email, is_host, is_allowed) VALUES (?, ?, ?, ?, ?, 0, 1)'
+        ).bind(handle, name, role || 'Engineer', team_track || 'backend', email || null).run();
+      } catch (insertErr) {
+        // Fallback for legacy D1 schemas where github_numeric_id is still strictly NOT NULL
+        res = await env.DB.prepare(
+          'INSERT INTO members (github_numeric_id, handle, name, role, team_track, email, is_host, is_allowed) VALUES (0, ?, ?, ?, ?, ?, 0, 1)'
+        ).bind(handle, name, role || 'Engineer', team_track || 'backend', email || null).run();
+      }
       await logAudit(env, member.handle, 'MEMBER_ADD', 'members', `Added ${name} (@${handle})`);
       return jsonResponse({ success: true, id: res.meta?.last_row_id }, 201);
     }

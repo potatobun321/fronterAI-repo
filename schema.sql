@@ -3,17 +3,21 @@
 -- Compatible with Cloudflare D1 (Serverless Distributed SQLite)
 -- ==============================================================================
 
--- 1. Members (GitHub Allowlist & RBAC)
+-- 1. Members (Identity, OAuth & RBAC)
 CREATE TABLE IF NOT EXISTS members (
-  id INTEGER PRIMARY KEY,
-  github_numeric_id INTEGER UNIQUE NOT NULL,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  github_numeric_id INTEGER,
   handle TEXT NOT NULL,
   name TEXT NOT NULL,
   role TEXT NOT NULL,
   team_track TEXT NOT NULL,
+  email TEXT,
+  google_sub TEXT,
   is_host INTEGER DEFAULT 0,
   is_allowed INTEGER DEFAULT 1
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_members_google_sub ON members (google_sub) WHERE google_sub IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_members_email ON members (email) WHERE email IS NOT NULL;
 
 -- 2. Tasks (Sprint Board & Deliverables)
 CREATE TABLE IF NOT EXISTS tasks (
