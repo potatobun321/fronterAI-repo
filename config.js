@@ -34,6 +34,7 @@ export const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 export const AI_PROVIDER = process.env.AI_PROVIDER || 'groq';
 export const isProduction = process.env.NODE_ENV === 'production';
 export const ROOT_DIR = __dirname;
+export const DIST_DIR = path.join(__dirname, 'dist');
 export const PUBLIC_DIR = path.join(__dirname, 'public');
 export const BACKUP_DIR = path.join(__dirname, 'backups');
 export const DB_PATH = path.join(__dirname, 'frontier.db');

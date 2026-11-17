@@ -2,8 +2,9 @@
 .env
 .env.local
 
-# Node dependencies
+# Node dependencies & build artifacts
 node_modules/
+dist/
 npm-debug.log*
 
 # Database files
