@@ -92,10 +92,10 @@ async function ensureSchema(env) {
   } catch (e) { }
 
   // Guarantee Host (id = 1) always exists with full permissions, and ensure non-leads are is_host = 0
-  const hostEmail = ((env && env.HOST_EMAIL) || 'kart123.san@gmail.com').toLowerCase().trim();
-  const hostGithubId = (env && env.HOST_GITHUB_ID) ? Number(env.HOST_GITHUB_ID) : 194890859;
-  const hostHandle = ((env && env.HOST_HANDLE) || 'kart123.san').trim();
-  const hostName = ((env && env.HOST_NAME) || 'Kartikay').trim();
+  const hostEmail = (env && env.HOST_EMAIL) ? env.HOST_EMAIL.toLowerCase().trim() : null;
+  const hostGithubId = (env && env.HOST_GITHUB_ID) ? Number(env.HOST_GITHUB_ID) : null;
+  const hostHandle = (env && env.HOST_HANDLE) ? env.HOST_HANDLE.trim() : 'host';
+  const hostName = (env && env.HOST_NAME) ? env.HOST_NAME.trim() : 'Team Host';
   try {
     await env.DB.prepare(`
       INSERT OR IGNORE INTO members (id, github_numeric_id, handle, name, role, team_track, email, is_host, is_allowed)
@@ -106,7 +106,11 @@ async function ensureSchema(env) {
   try {
     const existingHost = await env.DB.prepare('SELECT id FROM members WHERE is_host = 1 LIMIT 1').first();
     if (!existingHost) {
-      await env.DB.prepare("UPDATE members SET is_host = 1, is_allowed = 1 WHERE id = 1 OR LOWER(email) = ?").bind(hostEmail).run();
+      if (hostEmail) {
+        await env.DB.prepare("UPDATE members SET is_host = 1, is_allowed = 1 WHERE id = 1 OR LOWER(email) = ?").bind(hostEmail).run();
+      } else {
+        await env.DB.prepare("UPDATE members SET is_host = 1, is_allowed = 1 WHERE id = 1").run();
+      }
     }
   } catch (e) { }
 }
@@ -148,13 +152,20 @@ async function getAuthMember(request, env) {
       'SELECT * FROM members WHERE id = ? AND is_allowed = 1'
     ).bind(session.member_id).first();
     if (!member && session.member_id === 1) {
-      const hostEmail = ((env && env.HOST_EMAIL) || 'kart123.san@gmail.com').toLowerCase().trim();
+      const hostEmail = (env && env.HOST_EMAIL) ? env.HOST_EMAIL.toLowerCase().trim() : null;
+      const hostGithubId = (env && env.HOST_GITHUB_ID) ? Number(env.HOST_GITHUB_ID) : null;
+      const hostHandle = (env && env.HOST_HANDLE) ? env.HOST_HANDLE.trim() : 'host';
+      const hostName = (env && env.HOST_NAME) ? env.HOST_NAME.trim() : 'Team Host';
       try {
         await env.DB.prepare(`
           INSERT OR IGNORE INTO members (id, github_numeric_id, handle, name, role, team_track, email, is_host, is_allowed)
-          VALUES (1, 194890859, 'kart123.san', 'Kartikay', 'Team Host & Lead', 'lead', ?, 1, 1)
-        `).bind(hostEmail).run();
-        await env.DB.prepare("UPDATE members SET is_host = 1, is_allowed = 1, email = ? WHERE id = 1").bind(hostEmail).run();
+          VALUES (1, ?, ?, ?, 'Team Host & Lead', 'lead', ?, 1, 1)
+        `).bind(hostGithubId, hostHandle, hostName, hostEmail).run();
+        if (hostEmail) {
+          await env.DB.prepare("UPDATE members SET is_host = 1, is_allowed = 1, email = ? WHERE id = 1").bind(hostEmail).run();
+        } else {
+          await env.DB.prepare("UPDATE members SET is_host = 1, is_allowed = 1 WHERE id = 1").run();
+        }
         member = await env.DB.prepare('SELECT * FROM members WHERE id = 1 AND is_allowed = 1').first();
       } catch (e) { }
     }
