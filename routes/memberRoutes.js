@@ -65,59 +65,101 @@ export async function handleMemberRoutes(req, res, pathname, method) {
     }
 
     const body = await parseBody(req);
-    const { github_username, role, team_track } = body;
+    const { email, name, handle, role, team_track, github_username } = body;
+    const validTrack = ['frontend', 'backend', 'lead'].includes(team_track) ? team_track : 'backend';
+    const assignedRole = String(role || 'Engineer').trim();
 
-    if (!github_username || !role) {
-      return sendJson(res, 400, { error: 'GitHub username and role are required.' });
-    }
-
-    const sanitizedUsername = String(github_username).trim().replace(/^@/, '');
-    if (!/^[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}$/.test(sanitizedUsername)) {
-      return sendJson(res, 400, { error: 'Invalid GitHub username format.' });
-    }
-
-    // Check if user already exists
-    const existing = db.prepare('SELECT id, handle FROM members WHERE LOWER(handle) = LOWER(?)').get(sanitizedUsername);
-    if (existing) {
-      return sendJson(res, 409, { error: `Member @${sanitizedUsername} is already registered in the allowlist.` });
-    }
-
-    try {
-      // Query GitHub public API to verify user and retrieve immutable numeric ID
-      const ghRes = await fetch(`https://api.github.com/users/${encodeURIComponent(sanitizedUsername)}`, {
-        headers: { 'User-Agent': 'FrontierAI-Workspace' }
-      });
-
-      if (!ghRes.ok) {
-        return sendJson(res, 404, { error: `GitHub user @${sanitizedUsername} was not found on GitHub.` });
+    // 1. Primary: Onboard via Google Email
+    if (email) {
+      const cleanEmail = String(email).trim().toLowerCase();
+      if (!cleanEmail.includes('@') || cleanEmail.length < 5) {
+        return sendJson(res, 400, { error: 'Invalid email address provided.' });
       }
 
-      const ghData = await ghRes.json();
-      const numericId = ghData.id;
-      const displayName = ghData.name || sanitizedUsername;
-      const validTrack = ['frontend', 'backend', 'lead'].includes(team_track) ? team_track : 'backend';
+      const existingByEmail = db.prepare('SELECT id, name, handle FROM members WHERE LOWER(email) = LOWER(?)').get(cleanEmail);
+      if (existingByEmail) {
+        db.prepare('UPDATE members SET is_allowed = 1, role = ?, team_track = ? WHERE id = ?').run(assignedRole, validTrack, existingByEmail.id);
+        const updated = db.prepare('SELECT id, handle, name, role, team_track, email, is_host, is_allowed FROM members WHERE id = ?').get(existingByEmail.id);
+        return sendJson(res, 200, { member: updated, message: `Member ${cleanEmail} is now authorized!` });
+      }
 
-      // Secure Parameterized Insert: Completely immune to SQL injection
+      const cleanHandle = (handle || cleanEmail.split('@')[0]).replace(/[^a-zA-Z0-9_]/g, '').slice(0, 30) || 'user';
+      let uniqueHandle = cleanHandle;
+      const existingHandle = db.prepare('SELECT id FROM members WHERE LOWER(handle) = LOWER(?)').get(uniqueHandle);
+      if (existingHandle) {
+        uniqueHandle = `${cleanHandle}_${Math.floor(100 + Math.random() * 900)}`;
+      }
+      const displayName = String(name || cleanHandle).trim();
+
       const insertStmt = db.prepare(`
-        INSERT INTO members (github_numeric_id, handle, name, role, team_track, is_host, is_allowed)
+        INSERT INTO members (handle, name, role, team_track, email, is_host, is_allowed)
         VALUES (?, ?, ?, ?, ?, 0, 1)
       `);
-      const result = insertStmt.run(numericId, sanitizedUsername, displayName, String(role).trim(), validTrack);
+      const result = insertStmt.run(uniqueHandle, displayName, assignedRole, validTrack, cleanEmail);
 
       logAudit(
         currentUser.handle,
         'MEMBER_ONBOARDED',
         'members',
-        `Onboarded @${sanitizedUsername} (${displayName}, GitHub ID: ${numericId}) as ${role} [${validTrack}].`,
+        `Onboarded ${displayName} (${cleanEmail}, @${uniqueHandle}) as ${assignedRole} [${validTrack}].`,
         'SUCCESS'
       );
 
-      const newMember = db.prepare('SELECT id, github_numeric_id, handle, name, role, team_track, is_host, is_allowed FROM members WHERE id = ?').get(result.lastInsertRowid);
-      return sendJson(res, 201, { member: newMember, message: `Successfully onboarded @${sanitizedUsername} to Frontier AI allowlist.` });
-    } catch (err) {
-      console.error('Failed to onboard GitHub member:', err);
-      return sendJson(res, 500, { error: 'Failed to query GitHub API or store member.' });
+      const newMember = db.prepare('SELECT id, handle, name, role, team_track, email, is_host, is_allowed FROM members WHERE id = ?').get(result.lastInsertRowid);
+      return sendJson(res, 201, { member: newMember, message: `Successfully onboarded ${displayName} to Frontier AI allowlist.` });
     }
+
+    // 2. Legacy / Alternative: Onboard via GitHub username
+    if (github_username) {
+      const sanitizedUsername = String(github_username).trim().replace(/^@/, '');
+      if (!/^[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}$/.test(sanitizedUsername)) {
+        return sendJson(res, 400, { error: 'Invalid GitHub username format.' });
+      }
+
+      // Check if user already exists
+      const existing = db.prepare('SELECT id, handle FROM members WHERE LOWER(handle) = LOWER(?)').get(sanitizedUsername);
+      if (existing) {
+        return sendJson(res, 409, { error: `Member @${sanitizedUsername} is already registered in the allowlist.` });
+      }
+
+      try {
+        // Query GitHub public API to verify user and retrieve immutable numeric ID
+        const ghRes = await fetch(`https://api.github.com/users/${encodeURIComponent(sanitizedUsername)}`, {
+          headers: { 'User-Agent': 'FrontierAI-Workspace' }
+        });
+
+        if (!ghRes.ok) {
+          return sendJson(res, 404, { error: `GitHub user @${sanitizedUsername} was not found on GitHub.` });
+        }
+
+        const ghData = await ghRes.json();
+        const numericId = ghData.id;
+        const displayName = ghData.name || sanitizedUsername;
+
+        // Secure Parameterized Insert: Completely immune to SQL injection
+        const insertStmt = db.prepare(`
+          INSERT INTO members (github_numeric_id, handle, name, role, team_track, is_host, is_allowed)
+          VALUES (?, ?, ?, ?, ?, 0, 1)
+        `);
+        const result = insertStmt.run(numericId, sanitizedUsername, displayName, assignedRole, validTrack);
+
+        logAudit(
+          currentUser.handle,
+          'MEMBER_ONBOARDED',
+          'members',
+          `Onboarded @${sanitizedUsername} (${displayName}, GitHub ID: ${numericId}) as ${assignedRole} [${validTrack}].`,
+          'SUCCESS'
+        );
+
+        const newMember = db.prepare('SELECT id, github_numeric_id, handle, name, role, team_track, is_host, is_allowed FROM members WHERE id = ?').get(result.lastInsertRowid);
+        return sendJson(res, 201, { member: newMember, message: `Successfully onboarded @${sanitizedUsername} to Frontier AI allowlist.` });
+      } catch (err) {
+        console.error('Failed to onboard GitHub member:', err);
+        return sendJson(res, 500, { error: 'Failed to query GitHub API or store member.' });
+      }
+    }
+
+    return sendJson(res, 400, { error: 'Either email or github_username and role are required.' });
   }
 
   if (pathname.startsWith('/api/members/') && method === 'DELETE') {

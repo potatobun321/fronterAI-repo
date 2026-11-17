@@ -6,11 +6,7 @@ import { HOST_EMAIL } from '../config.js';
 
 function isHostUser(u) {
   if (!u) return false;
-  const email = (u.email || '').toLowerCase().trim();
-  const hostEmailClean = (HOST_EMAIL || '').toLowerCase().trim();
-  const hostUserPrefix = hostEmailClean.split('@')[0];
-  const isLeadEmail = email === hostEmailClean || (hostUserPrefix && email.includes(hostUserPrefix));
-  return !!(isLeadEmail || u.is_host === 1 || (Number(u.id) === 1 && (!email || isLeadEmail)));
+  return Number(u.is_host) === 1;
 }
 
 export async function handleVotingRoutes(req, res, pathname, method, urlObj) {

@@ -6,9 +6,9 @@ name = "fronterai-repo"
 compatibility_date = "2024-04-01"
 main = "worker.js"
 
-# Static assets directory for frontend
+# Static assets directory for frontend (Vite compiled output)
 [assets]
-directory = "./public"
+directory = "./dist"
 binding = "ASSETS"
 
 # D1 Database Binding — persists across all builds

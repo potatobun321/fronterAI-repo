@@ -8,15 +8,18 @@ export function initDatabase() {
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec('PRAGMA busy_timeout = 5000;');
   db.exec('PRAGMA foreign_keys = ON;');
+  db.exec('PRAGMA wal_checkpoint(TRUNCATE);');
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS members (
-      id INTEGER PRIMARY KEY,
-      github_numeric_id INTEGER UNIQUE NOT NULL,
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      github_numeric_id INTEGER,
       handle TEXT NOT NULL,
       name TEXT NOT NULL,
       role TEXT NOT NULL,
       team_track TEXT NOT NULL,
+      email TEXT,
+      google_sub TEXT,
       is_host INTEGER DEFAULT 0,
       is_allowed INTEGER DEFAULT 1
     );
@@ -214,6 +217,42 @@ export function initDatabase() {
   try { db.exec('ALTER TABLE members ADD COLUMN email TEXT'); } catch (e) {}
   try { db.exec('ALTER TABLE voting_sessions ADD COLUMN target_member_id INTEGER'); } catch (e) {}
 
+  // Migrate members table if github_numeric_id is still strictly NOT NULL
+  try {
+    const memberCols = db.prepare('PRAGMA table_info(members)').all();
+    const ghCol = memberCols.find(c => c.name === 'github_numeric_id');
+    if (ghCol && ghCol.notnull === 1) {
+      db.exec('PRAGMA foreign_keys = OFF;');
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS members_v2 (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          github_numeric_id INTEGER,
+          handle TEXT NOT NULL,
+          name TEXT NOT NULL,
+          role TEXT NOT NULL,
+          team_track TEXT NOT NULL,
+          email TEXT,
+          google_sub TEXT,
+          is_host INTEGER DEFAULT 0,
+          is_allowed INTEGER DEFAULT 1
+        );
+        INSERT INTO members_v2 (id, github_numeric_id, handle, name, role, team_track, email, google_sub, is_host, is_allowed)
+        SELECT id, github_numeric_id, handle, name, role, team_track, email, google_sub, is_host, is_allowed FROM members;
+        DROP TABLE members;
+        ALTER TABLE members_v2 RENAME TO members;
+      `);
+      db.exec('PRAGMA foreign_keys = ON;');
+    }
+  } catch (e) {
+    console.warn('Members schema migration notice:', e.message);
+  }
+
+  // Ensure unique indexes on email and google_sub
+  try {
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_members_google_sub ON members (google_sub) WHERE google_sub IS NOT NULL;');
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_members_email ON members (email) WHERE email IS NOT NULL;');
+  } catch (e) {}
+
   // Ensure the 6 meeting slots exist
   const slotCount = db.prepare('SELECT COUNT(*) as count FROM meeting_slots').get();
   if (slotCount.count === 0) {
@@ -261,13 +300,13 @@ export function seedData() {
   seedMeetingSlots();
 
   const insertMember = db.prepare(`
-    INSERT INTO members (id, github_numeric_id, handle, name, role, team_track, is_host, is_allowed)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO members (id, github_numeric_id, handle, name, role, team_track, email, is_host, is_allowed)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   // Sole authorized member: Kartikay (kart123.san@gmail.com) as Team Host & Lead
   const members = [
-    [1, 194890859, 'kart123.san', 'Kartikay', 'Team Host & Lead', 'lead', 1, 1]
+    [1, 194890859, 'kart123.san', 'Kartikay', 'Team Host & Lead', 'lead', 'kart123.san@gmail.com', 1, 1]
   ];
 
   for (const m of members) {

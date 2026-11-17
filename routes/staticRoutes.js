@@ -1,15 +1,27 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { PUBLIC_DIR } from '../config.js';
+import { PUBLIC_DIR, DIST_DIR } from '../config.js';
 
 export function handleStaticRoutes(req, res, pathname) {
-  let filePath = path.join(PUBLIC_DIR, pathname === '/' ? 'index.html' : pathname);
+  // Use compiled dist/ directory if it exists, otherwise fallback to public/
+  const baseDir = fs.existsSync(path.join(DIST_DIR, 'index.html')) ? DIST_DIR : PUBLIC_DIR;
+  let targetPath = pathname === '/' ? 'index.html' : pathname;
+  let filePath = path.join(baseDir, targetPath);
 
   // Security: Prevent path traversal attacks
-  if (!filePath.startsWith(PUBLIC_DIR)) {
+  if (!filePath.startsWith(baseDir)) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });
     res.end('Forbidden');
     return true;
+  }
+
+  // SPA fallback for non-API client routes
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    if (!pathname.startsWith('/api') && fs.existsSync(path.join(baseDir, 'index.html'))) {
+      filePath = path.join(baseDir, 'index.html');
+    } else {
+      return false;
+    }
   }
 
   if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
