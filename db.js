@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { DB_PATH } from './config.js';
+import { DB_PATH, HOST_EMAIL, HOST_GITHUB_ID, HOST_HANDLE, HOST_NAME } from './config.js';
 
 export const db = new DatabaseSync(DB_PATH);
 
@@ -304,9 +304,9 @@ export function seedData() {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  // Sole authorized member: Kartikay (kart123.san@gmail.com) as Team Host & Lead
+  // Initial authorized member: Configured Team Host & Lead
   const members = [
-    [1, 194890859, 'kart123.san', 'Kartikay', 'Team Host & Lead', 'lead', 'kart123.san@gmail.com', 1, 1]
+    [1, HOST_GITHUB_ID || null, HOST_HANDLE || 'host', HOST_NAME || 'Team Host', 'Team Host & Lead', 'lead', HOST_EMAIL || null, 1, 1]
   ];
 
   for (const m of members) {
@@ -380,10 +380,10 @@ export function seedData() {
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(
     new Date().toISOString(),
-    'kart123.san',
+    HOST_HANDLE || 'host',
     'INIT_PLATFORM',
     'governance',
-    'Frontier AI Platform initialized with clean slate and AI memory. Kartikay designated as Team Host & Lead.',
+    `Frontier AI Platform initialized with clean slate and AI memory. ${HOST_NAME || 'Team Host'} designated as Team Host & Lead.`,
     'SUCCESS'
   );
 }

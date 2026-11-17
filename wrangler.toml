@@ -6,6 +6,10 @@ name = "fronterai-repo"
 compatibility_date = "2024-04-01"
 main = "worker.js"
 
+# Auto-build frontend into ./dist prior to deployment
+[build]
+command = "npm run build"
+
 # Static assets directory for frontend (Vite compiled output)
 [assets]
 directory = "./dist"
