@@ -662,7 +662,7 @@ export async function onRequest(context) {
 
       await env.DB.batch([
         env.DB.prepare("UPDATE members SET is_host = 1, role = 'Team Host & Lead', team_track = 'lead' WHERE id = ?").bind(targetId),
-        env.DB.prepare("UPDATE members SET is_host = 0, role = 'Software Engineer' WHERE id = ?").bind(member.id)
+        env.DB.prepare("UPDATE members SET is_host = 0, role = 'Software Engineer', team_track = 'backend' WHERE id = ?").bind(member.id)
       ]);
 
       await logAudit(env, member.handle, 'HOST_AUTHORITY_TRANSFERRED', `member_${targetId}`, `Team Host authority transferred from ${member.name} to ${targetMember.name}`);
@@ -1828,7 +1828,7 @@ When performing or preparing an operational action, output a concise friendly su
 
         await env.DB.batch([
           env.DB.prepare("UPDATE members SET is_host = 1, role = 'Team Host & Lead', team_track = 'lead' WHERE id = ?").bind(targetId),
-          env.DB.prepare("UPDATE members SET is_host = 0, role = 'Software Engineer' WHERE id = ?").bind(member.id)
+          env.DB.prepare("UPDATE members SET is_host = 0, role = 'Software Engineer', team_track = 'backend' WHERE id = ?").bind(member.id)
         ]);
 
         await logAudit(env, member.handle || member.name, 'AI_ACTION_TRANSFER_HOST', `member_${targetId}`, `Transferred host authority to ${targetMember.name}`);
