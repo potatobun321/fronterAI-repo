@@ -101,6 +101,11 @@ async function ensureSchema(env) {
       INSERT OR IGNORE INTO members (id, github_numeric_id, handle, name, role, team_track, email, is_host, is_allowed)
       VALUES (1, ?, ?, ?, 'Team Host & Lead', 'lead', ?, 1, 1)
     `).bind(hostGithubId, hostHandle, hostName, hostEmail).run();
+
+    // If host name was customized in env, update initial seed name
+    if (hostName && hostName !== 'Team Host') {
+      await env.DB.prepare("UPDATE members SET name = ?, handle = ? WHERE id = 1 AND (name = 'Kartikay' OR name = 'Team Host')").bind(hostName, hostHandle).run();
+    }
   } catch (e) { }
 
   try {
@@ -305,10 +310,11 @@ export async function onRequest(context) {
       const googleUser = await userRes.json();
       const googleSub = googleUser.sub;
       const googleEmail = googleUser.email;
+      const googleName = googleUser.name || googleUser.given_name || (googleEmail ? googleEmail.split('@')[0] : 'Member');
 
       // Allowlist check:
       let member = null;
-      const hostEmailClean = ((env && env.HOST_EMAIL) || 'kart123.san@gmail.com').toLowerCase().trim();
+      const hostEmailClean = (env && env.HOST_EMAIL) ? env.HOST_EMAIL.toLowerCase().trim() : '';
       const isHostEmail = Boolean(googleEmail && hostEmailClean && googleEmail.toLowerCase() === hostEmailClean);
 
       // 1. Host Priority Check: Host is recognized by exact host email
@@ -317,7 +323,7 @@ export async function onRequest(context) {
           member = await env.DB.prepare('SELECT * FROM members WHERE is_host = 1 OR id = 1').first();
           if (member) {
             try {
-              await env.DB.prepare('UPDATE members SET email = ?, google_sub = ?, is_host = 1, is_allowed = 1 WHERE id = ?').bind(googleEmail, googleSub, member.id).run();
+              await env.DB.prepare('UPDATE members SET name = ?, email = ?, google_sub = ?, is_host = 1, is_allowed = 1 WHERE id = ?').bind(googleName, googleEmail, googleSub, member.id).run();
               member = await env.DB.prepare('SELECT * FROM members WHERE id = ?').bind(member.id).first();
             } catch (err) { }
           }
@@ -328,6 +334,10 @@ export async function onRequest(context) {
       if (!member) {
         try {
           member = await env.DB.prepare('SELECT * FROM members WHERE google_sub = ?').bind(googleSub).first();
+          if (member) {
+            await env.DB.prepare('UPDATE members SET name = COALESCE(?, name), email = COALESCE(email, ?) WHERE id = ?').bind(googleName, googleEmail || null, member.id).run();
+            member = await env.DB.prepare('SELECT * FROM members WHERE id = ?').bind(member.id).first();
+          }
         } catch (e) { }
       }
 
@@ -339,7 +349,7 @@ export async function onRequest(context) {
       } else if (member && googleSub) {
         // Update google_sub and email if needed
         try {
-          await env.DB.prepare('UPDATE members SET google_sub = COALESCE(google_sub, ?), email = COALESCE(email, ?) WHERE id = ?').bind(googleSub, googleEmail || null, member.id).run();
+          await env.DB.prepare('UPDATE members SET name = COALESCE(?, name), google_sub = COALESCE(google_sub, ?), email = COALESCE(email, ?) WHERE id = ?').bind(googleName, googleSub, googleEmail || null, member.id).run();
         } catch (e) { }
       }
 
@@ -1461,13 +1471,21 @@ export async function onRequest(context) {
         memory = await env.DB.prepare('SELECT memory_data FROM member_memories WHERE member_id = ?').bind(memberId).first();
       } catch (e) { }
 
+      let userProfileMemory = '';
+      if (memory?.memory_data) {
+        try {
+          const mData = JSON.parse(memory.memory_data);
+          userProfileMemory = '\nUser Focus: ' + (mData.focus_area || 'Platform Engineering') + (mData.skills ? ` (${mData.skills.join(', ')})` : '');
+        } catch (e) { }
+      }
+
       const isHost = isHostMember(member, env);
       const systemPrompt = `You are Frontier Oracle, the elite technical intelligence and operational execution agent for the Frontier AI workspace.
 You have real-time situational awareness and direct action-dispatching authority over workspace state.
 
 ACTIVE SESSION IDENTITY:
-User: ${member.name} (@${member.handle || member.email}) | Role: ${member.role} [Track: ${member.team_track || 'General'}]
-Host / Admin Authorization: ${isHost ? 'YES (Authorized Team Host & Lead)' : 'NO (Regular Team Contributor)'}${memory?.memory_data ? '\nUser Profile: ' + memory.memory_data : ''}
+User: ${member.name} (@${member.handle || member.email}) | Role: ${isHost ? 'Team Host & Lead' : member.role} [Track: ${member.team_track || 'General'}]
+Host / Admin Authorization: ${isHost ? 'YES (Current Authorized Team Host & Lead)' : 'NO (Regular Contributor — Not the Team Host)'}${userProfileMemory}
 
 WORKSPACE LIVE STATE:
 ${teamRosterContext}
