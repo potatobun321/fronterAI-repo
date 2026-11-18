@@ -303,12 +303,12 @@ export async function handleAuthRoutes(req, res, pathname, method, urlObj) {
     const { github_numeric_id, email, member_id } = body;
 
     let member = null;
-    if (github_numeric_id !== undefined && github_numeric_id !== null) {
-      member = db.prepare('SELECT * FROM members WHERE github_numeric_id = ?').get(github_numeric_id);
+    if (member_id) {
+      member = db.prepare('SELECT * FROM members WHERE id = ?').get(member_id);
     } else if (email) {
       member = db.prepare('SELECT * FROM members WHERE LOWER(email) = LOWER(?)').get(email);
-    } else if (member_id) {
-      member = db.prepare('SELECT * FROM members WHERE id = ?').get(member_id);
+    } else if (github_numeric_id !== undefined && github_numeric_id !== null) {
+      member = db.prepare('SELECT * FROM members WHERE github_numeric_id = ?').get(github_numeric_id);
     }
 
     if (!member || !member.is_allowed) {

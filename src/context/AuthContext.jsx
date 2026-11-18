@@ -49,9 +49,14 @@ export function AuthProvider({ children }) {
 
   const loginAs = async (identifier) => {
     try {
-      const payload = typeof identifier === 'number'
-        ? { github_numeric_id: identifier }
-        : { email: identifier };
+      let payload = {};
+      if (typeof identifier === 'number') {
+        payload = { member_id: identifier };
+      } else if (typeof identifier === 'string') {
+        payload = identifier.includes('@') ? { email: identifier } : { member_id: parseInt(identifier, 10) };
+      } else if (typeof identifier === 'object' && identifier !== null) {
+        payload = identifier;
+      }
       const res = await api.loginAs(payload);
       if (res && res.user) {
         setCurrentUser(res.user);
