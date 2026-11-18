@@ -109,14 +109,15 @@ async function ensureSchema(env) {
   } catch (e) { }
 
   try {
-    const existingHost = await env.DB.prepare('SELECT id FROM members WHERE is_host = 1 LIMIT 1').first();
-    if (!existingHost) {
-      if (hostEmail) {
-        await env.DB.prepare("UPDATE members SET is_host = 1, is_allowed = 1 WHERE id = 1 OR LOWER(email) = ?").bind(hostEmail).run();
-      } else {
-        await env.DB.prepare("UPDATE members SET is_host = 1, is_allowed = 1 WHERE id = 1").run();
+    if (hostEmail) {
+      const designatedHost = await env.DB.prepare('SELECT id, is_host FROM members WHERE LOWER(email) = ? OR id = 1').bind(hostEmail).first();
+      if (designatedHost && designatedHost.is_host !== 1) {
+        await env.DB.prepare("UPDATE members SET is_host = 0, role = 'Software Engineer', team_track = 'backend' WHERE is_host = 1").run();
+        await env.DB.prepare("UPDATE members SET is_host = 1, role = 'Team Host & Lead', team_track = 'lead', is_allowed = 1 WHERE id = ?").bind(designatedHost.id).run();
       }
     }
+    // Clean up any non-host members whose team_track was left as 'lead'
+    await env.DB.prepare("UPDATE members SET team_track = 'backend' WHERE is_host = 0 AND team_track = 'lead'").run();
   } catch (e) { }
 }
 
@@ -1199,19 +1200,14 @@ export async function onRequest(context) {
 
     if (pathname === '/api/voting/close' && method === 'POST') {
       const member = await getAuthMember(request, env);
-      if (!member) return jsonResponse({ error: 'Authentication required' }, 401);
+      if (!isHostMember(member, env)) return jsonResponse({ error: 'Unauthorized: Only Team Lead (Admin) can close a review round' }, 403);
       const body = await request.json().catch(() => ({}));
       let targetId = body.session_id;
       if (!targetId) {
-        const active = await env.DB.prepare("SELECT id, created_by FROM voting_sessions WHERE status = 'ACTIVE' ORDER BY id DESC LIMIT 1").first();
+        const active = await env.DB.prepare("SELECT id FROM voting_sessions WHERE status = 'ACTIVE' ORDER BY id DESC LIMIT 1").first();
         targetId = active?.id;
       }
       if (!targetId) return jsonResponse({ error: 'No active review session found to close' }, 400);
-
-      const sess = await env.DB.prepare("SELECT id, created_by FROM voting_sessions WHERE id = ?").bind(targetId).first();
-      const isHost = isHostMember(member, env);
-      const isCreator = Boolean(sess && Number(sess.created_by) === Number(member.id));
-      if (!isHost && !isCreator) return jsonResponse({ error: 'Unauthorized: Only Team Lead (Admin) or the round creator can close a review round' }, 403);
 
       await env.DB.prepare("UPDATE voting_sessions SET status = 'CLOSED', closed_at = datetime('now') WHERE id = ?").bind(targetId).run();
       await logAudit(env, member.handle, 'CLOSE_VOTING', 'voting', `Closed review session #${targetId}`);

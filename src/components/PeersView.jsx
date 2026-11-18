@@ -216,15 +216,16 @@ export function PeersView() {
                     <div>
                       <div style={{ fontWeight: 600, fontSize: '0.96rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span>{m.name}</span>
-                        {m.is_host === 1 && (
-                          <span style={{ fontSize: '0.68rem', padding: '1px 6px', borderRadius: 'var(--radius-pill)', background: 'var(--google-amber-container)', color: 'var(--google-amber-text)', fontWeight: 600 }}>
-                            Lead
-                          </span>
-                        )}
                       </div>
                       <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>{m.email || `@${m.handle}`}</div>
                     </div>
-                    <span className={`track-tag track-${m.team_track || 'backend'}`}>{m.team_track || 'dev'}</span>
+                    {m.is_host === 1 ? (
+                      <span className="track-tag track-lead">LEAD</span>
+                    ) : (
+                      <span className={`track-tag track-${(m.team_track === 'lead' ? 'backend' : m.team_track) || 'backend'}`}>
+                        {(m.team_track === 'lead' ? 'backend' : m.team_track) || 'dev'}
+                      </span>
+                    )}
                   </div>
 
                   <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '4px' }}>

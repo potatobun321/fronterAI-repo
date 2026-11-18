@@ -348,19 +348,15 @@ export async function handleVotingRoutes(req, res, pathname, method, urlObj) {
 
   if (pathname === '/api/voting/close' && method === 'POST') {
     const currentUser = getSessionUser(req);
-    if (!currentUser) return sendJson(res, 401, { error: 'Authentication required' });
-    const body = await parseBody(req);
-    const targetSessionId = body.session_id || 1;
-    const sess = db.prepare('SELECT id, created_by FROM voting_sessions WHERE id = ?').get(targetSessionId);
-    const isHost = isHostUser(currentUser);
-    const isCreator = Boolean(sess && Number(sess.created_by) === Number(currentUser.id));
-
-    if (!isHost && !isCreator) {
-      return sendJson(res, 403, { error: 'Permission Denied: Only the Team Host or round creator can close a voting session.' });
+    if (!isHostUser(currentUser)) {
+      return sendJson(res, 403, { error: 'Permission Denied: Only the Team Host (Admin) can close a voting session.' });
     }
 
+    const body = await parseBody(req);
+    const targetSessionId = body.session_id || 1;
+
     db.prepare(`UPDATE voting_sessions SET status = 'CLOSED', closed_at = ? WHERE id = ?`).run(new Date().toISOString(), targetSessionId);
-    logAudit(currentUser.handle, 'CLOSE_VOTING_SESSION', `voting_session_${targetSessionId}`, `Closed voting session #${targetSessionId} and revealed aggregate tallies.`, 'SUCCESS');
+    logAudit(currentUser.handle, 'CLOSE_VOTING_SESSION', `voting_session_${targetSessionId}`, `Host closed voting session #${targetSessionId} and revealed aggregate tallies.`, 'SUCCESS');
 
     return sendJson(res, 200, { message: `Voting session #${targetSessionId} closed. Final tallies revealed!` });
   }
