@@ -1199,15 +1199,19 @@ export async function onRequest(context) {
 
     if (pathname === '/api/voting/close' && method === 'POST') {
       const member = await getAuthMember(request, env);
-      const isHost = isHostMember(member, env);
-      if (!isHost) return jsonResponse({ error: 'Unauthorized: Only Team Lead (Admin) can close a review round' }, 403);
+      if (!member) return jsonResponse({ error: 'Authentication required' }, 401);
       const body = await request.json().catch(() => ({}));
       let targetId = body.session_id;
       if (!targetId) {
-        const active = await env.DB.prepare("SELECT id FROM voting_sessions WHERE status = 'ACTIVE' ORDER BY id DESC LIMIT 1").first();
+        const active = await env.DB.prepare("SELECT id, created_by FROM voting_sessions WHERE status = 'ACTIVE' ORDER BY id DESC LIMIT 1").first();
         targetId = active?.id;
       }
       if (!targetId) return jsonResponse({ error: 'No active review session found to close' }, 400);
+
+      const sess = await env.DB.prepare("SELECT id, created_by FROM voting_sessions WHERE id = ?").bind(targetId).first();
+      const isHost = isHostMember(member, env);
+      const isCreator = Boolean(sess && Number(sess.created_by) === Number(member.id));
+      if (!isHost && !isCreator) return jsonResponse({ error: 'Unauthorized: Only Team Lead (Admin) or the round creator can close a review round' }, 403);
 
       await env.DB.prepare("UPDATE voting_sessions SET status = 'CLOSED', closed_at = datetime('now') WHERE id = ?").bind(targetId).run();
       await logAudit(env, member.handle, 'CLOSE_VOTING', 'voting', `Closed review session #${targetId}`);

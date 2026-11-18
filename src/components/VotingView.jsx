@@ -7,7 +7,7 @@ import { Modal } from './Modal';
 import { Vote, Key, CheckCircle, Shield, Lock, RotateCcw, Plus, Star, Users, CheckSquare, Award } from 'lucide-react';
 
 export function VotingView() {
-  const { isHost, members } = useAuth();
+  const { currentUser, isHost, members } = useAuth();
   const toast = useToast();
   const [sessionData, setSessionData] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -198,6 +198,7 @@ export function VotingView() {
   const session = sessionData?.session;
   const candidates = sessionData?.candidates || [];
   const tally = sessionData?.tally || [];
+  const canManageSession = Boolean(isHost || (session && Number(session.created_by) === Number(currentUser?.id)));
 
   return (
     <div className="view-container">
@@ -208,12 +209,14 @@ export function VotingView() {
           <p>Anonymous peer feedback on engineer performance and completed project deliverables</p>
         </div>
 
-        {/* Lead-Only Action Controls */}
-        {isHost && (
+        {/* Action Controls for Host & Session Creator */}
+        {canManageSession && (
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <button className="btn btn-primary" onClick={() => setIsLaunchModalOpen(true)}>
-              <Plus size={16} /> Host Review Round
-            </button>
+            {isHost && (
+              <button className="btn btn-primary" onClick={() => setIsLaunchModalOpen(true)}>
+                <Plus size={16} /> Host Review Round
+              </button>
+            )}
 
             {session?.status === 'ACTIVE' && (
               <button className="btn btn-secondary" onClick={() => setIsCloseModalOpen(true)}>
@@ -221,7 +224,7 @@ export function VotingView() {
               </button>
             )}
 
-            {session?.status === 'CLOSED' && (
+            {isHost && session?.status === 'CLOSED' && (
               <button className="btn btn-secondary" onClick={handleReopenSession}>
                 <RotateCcw size={16} /> Reopen Round
               </button>
@@ -582,8 +585,8 @@ export function VotingView() {
         </Modal>
       )}
 
-      {/* Close Round Confirmation Modal (Lead Only) */}
-      {isHost && (
+      {/* Close Round Confirmation Modal */}
+      {canManageSession && (
         <ConfirmModal
           isOpen={isCloseModalOpen}
           onClose={() => setIsCloseModalOpen(false)}
