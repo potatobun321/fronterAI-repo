@@ -4,7 +4,8 @@ import { Sun, Moon, Sparkles, User, LogOut, ShieldCheck, ChevronDown, Menu } fro
 
 export function Header({ onToggleOracle, isOracleOpen, onToggleSidebar, isSidebarCollapsed }) {
   const { currentUser, isHost, members, theme, toggleTheme, loginAs, logout } = useAuth();
-  const [showPersonaMenu, setShowPersonaMenu] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
   return (
     <header className="app-header">
@@ -40,114 +41,85 @@ export function Header({ onToggleOracle, isOracleOpen, onToggleSidebar, isSideba
           {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
         </button>
 
-        {/* Persona Switcher / User Profile */}
-        <div style={{ position: 'relative' }}>
-          <button
-            className="btn btn-secondary"
-            style={{ padding: '6px 12px', fontSize: '0.82rem' }}
-            onClick={() => setShowPersonaMenu(!showPersonaMenu)}
-          >
-            {isHost ? <ShieldCheck size={16} style={{ color: 'var(--google-amber)' }} /> : <User size={16} />}
-            <span>{currentUser ? currentUser.name : 'Sign In'}</span>
-            <ChevronDown size={14} style={{ opacity: 0.6 }} />
-          </button>
-
-          {showPersonaMenu && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '100%',
-                right: 0,
-                marginTop: '6px',
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-default)',
-                borderRadius: 'var(--radius-md)',
-                boxShadow: 'var(--shadow-md)',
-                width: '260px',
-                padding: '8px',
-                zIndex: 100
-              }}
+        {/* User Account Menu / Login Button */}
+        {currentUser ? (
+          <div style={{ position: 'relative' }}>
+            <button
+              className="btn btn-secondary"
+              style={{ padding: '6px 12px', fontSize: '0.82rem' }}
+              onClick={() => setShowUserMenu(!showUserMenu)}
             >
-              <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                {currentUser ? (
-                  <>
-                    <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.88rem' }}>{currentUser.name}</div>
-                    <div>{currentUser.email || `@${currentUser.handle}`}</div>
-                    <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>{currentUser.role}</span>
-                      {isHost && (
-                        <span style={{ fontSize: '0.68rem', padding: '1px 6px', borderRadius: 'var(--radius-pill)', background: 'var(--google-amber-container)', color: 'var(--google-amber-text)', fontWeight: 600 }}>
-                          Host
-                        </span>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  'Select a persona or log in'
-                )}
-              </div>
+              {isHost ? <ShieldCheck size={16} style={{ color: 'var(--google-amber)' }} /> : <User size={16} />}
+              <span>{currentUser.name}</span>
+              <ChevronDown size={14} style={{ opacity: 0.6 }} />
+            </button>
 
-              <div style={{ maxHeight: '180px', overflowY: 'auto', padding: '4px 0' }}>
-                <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-muted)', padding: '6px 10px', letterSpacing: '0.04em' }}>
-                  Workspace Members
-                </div>
-                {members.map(m => (
-                  <button
-                    key={m.id}
-                    onClick={() => {
-                      loginAs({ member_id: m.id });
-                      setShowPersonaMenu(false);
-                    }}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 10px',
-                      background: currentUser?.id === m.id ? 'var(--google-blue-container)' : 'transparent',
-                      color: currentUser?.id === m.id ? 'var(--google-blue-text)' : 'inherit',
-                      border: 'none',
-                      borderRadius: 'var(--radius-sm)',
-                      cursor: 'pointer',
-                      fontSize: '0.82rem',
-                      textAlign: 'left',
-                      marginBottom: '2px'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                      <div style={{
-                        width: '24px',
-                        height: '24px',
-                        borderRadius: '50%',
-                        background: 'var(--google-blue-container)',
-                        color: 'var(--google-blue-text)',
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
-                      }}>
-                        {(m.name || m.handle || 'U').charAt(0).toUpperCase()}
-                      </div>
-                      <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        <div style={{ fontWeight: 600, fontSize: '0.82rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.role}</div>
-                      </div>
-                    </div>
-                    {m.is_host === 1 && (
-                      <span style={{ fontSize: '0.64rem', padding: '1px 6px', borderRadius: 'var(--radius-pill)', background: 'var(--google-amber-container)', color: 'var(--google-amber-text)', fontWeight: 600, flexShrink: 0 }}>
-                        LEAD
+            {showUserMenu && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: '6px',
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-md)',
+                  boxShadow: 'var(--shadow-md)',
+                  width: '260px',
+                  padding: '12px',
+                  zIndex: 100
+                }}
+              >
+                <div style={{ paddingBottom: '10px', borderBottom: '1px solid var(--border-subtle)' }}>
+                  <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.92rem' }}>{currentUser.name}</div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginTop: '2px' }}>{currentUser.email || `@${currentUser.handle}`}</div>
+                  <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 500 }}>{currentUser.role}</span>
+                    {isHost && (
+                      <span style={{ fontSize: '0.64rem', padding: '1px 6px', borderRadius: 'var(--radius-pill)', background: 'var(--google-amber-container)', color: 'var(--google-amber-text)', fontWeight: 700 }}>
+                        TEAM LEAD
                       </span>
                     )}
-                  </button>
-                ))}
-              </div>
+                  </div>
+                </div>
 
-              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '6px', marginTop: '4px' }}>
-                {currentUser ? (
+                {/* Localhost-only dev simulation tool */}
+                {isLocalhost && (
+                  <details style={{ marginTop: '10px', borderTop: '1px solid var(--border-subtle)', paddingTop: '8px', fontSize: '0.75rem' }}>
+                    <summary style={{ cursor: 'pointer', color: 'var(--text-muted)', userSelect: 'none' }}>
+                      Local Dev Persona Test
+                    </summary>
+                    <div style={{ maxHeight: '140px', overflowY: 'auto', marginTop: '6px' }}>
+                      {members.map(m => (
+                        <button
+                          key={m.id}
+                          onClick={() => { loginAs({ member_id: m.id }); setShowUserMenu(false); }}
+                          style={{
+                            width: '100%',
+                            textAlign: 'left',
+                            padding: '4px 6px',
+                            background: currentUser.id === m.id ? 'var(--google-blue-container)' : 'transparent',
+                            color: currentUser.id === m.id ? 'var(--google-blue-text)' : 'inherit',
+                            border: 'none',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                            fontSize: '0.75rem',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            marginBottom: '2px'
+                          }}
+                        >
+                          <span>{m.name}</span>
+                          <span style={{ opacity: 0.6 }}>{m.is_host === 1 ? 'Lead' : 'Member'}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </details>
+                )}
+
+                <div style={{ paddingTop: '10px', marginTop: '4px' }}>
                   <button
-                    onClick={() => { logout(); setShowPersonaMenu(false); }}
+                    onClick={() => { logout(); setShowUserMenu(false); }}
                     style={{
                       width: '100%',
                       display: 'flex',
@@ -164,28 +136,19 @@ export function Header({ onToggleOracle, isOracleOpen, onToggleSidebar, isSideba
                   >
                     <LogOut size={14} /> Sign Out
                   </button>
-                ) : (
-                  <a
-                    href="/api/auth/google"
-                    style={{
-                      display: 'block',
-                      textAlign: 'center',
-                      padding: '8px 10px',
-                      background: 'var(--google-blue)',
-                      color: 'var(--bg-canvas)',
-                      textDecoration: 'none',
-                      borderRadius: 'var(--radius-sm)',
-                      fontSize: '0.82rem',
-                      fontWeight: 500
-                    }}
-                  >
-                    Sign In with Google
-                  </a>
-                )}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        ) : (
+          <a
+            href="/api/auth/google"
+            className="btn btn-primary"
+            style={{ padding: '6px 14px', fontSize: '0.82rem', textDecoration: 'none' }}
+          >
+            <User size={15} /> Sign In with Google
+          </a>
+        )}
 
         {/* Oracle AI Assistant Pill */}
         <button
