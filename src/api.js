@@ -61,10 +61,11 @@ export const api = {
 
   // Voting & Peer Review
   getVotingCurrent: (sessionId = 0) => request(`/api/voting/current${sessionId ? `?session_id=${sessionId}` : ''}`),
+  createVotingSession: (data) => request('/api/voting/create', { method: 'POST', body: JSON.stringify(data) }),
   claimBallotToken: (sessionId) => request('/api/voting/token', { method: 'POST', body: JSON.stringify({ session_id: sessionId }) }),
-  castBallot: (ballot) => request('/api/voting/ballot', { method: 'POST', body: JSON.stringify(ballot) }),
-  closeVotingSession: (sessionId) => request(`/api/voting/close/${sessionId}`, { method: 'POST' }),
-  reopenVotingSession: (sessionId) => request(`/api/voting/reopen/${sessionId}`, { method: 'POST' }),
+  castBallot: (ballot) => request('/api/voting/cast', { method: 'POST', body: JSON.stringify(ballot) }),
+  closeVotingSession: (sessionId) => request('/api/voting/close', { method: 'POST', body: JSON.stringify({ session_id: sessionId }) }),
+  reopenVotingSession: (sessionId) => request('/api/voting/reopen', { method: 'POST', body: JSON.stringify({ session_id: sessionId }) }),
 
   // Members & Governance
   getMembers: () => request('/api/members'),

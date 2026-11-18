@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
+import { MobileBottomNav } from './components/MobileBottomNav';
 import { TasksView } from './components/TasksView';
 import { CallRoomView } from './components/CallRoomView';
 import { VotingView } from './components/VotingView';
@@ -13,21 +14,35 @@ import { OraclePanel } from './components/OraclePanel';
 function AppContent() {
   const [currentView, setCurrentView] = useState('tasks');
   const [isOracleOpen, setIsOracleOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('frontier_sidebar_collapsed') === 'true';
+  });
+
+  const toggleSidebar = () => {
+    setIsSidebarCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('frontier_sidebar_collapsed', String(next));
+      return next;
+    });
+  };
 
   return (
     <div className="app-container">
       <Header
         onToggleOracle={() => setIsOracleOpen(prev => !prev)}
         isOracleOpen={isOracleOpen}
+        onToggleSidebar={toggleSidebar}
+        isSidebarCollapsed={isSidebarCollapsed}
       />
 
       <div className="main-body">
         <Sidebar
           currentView={currentView}
           onChangeView={setCurrentView}
+          isCollapsed={isSidebarCollapsed}
         />
 
-        <main style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        <main className="main-content-canvas" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           {currentView === 'tasks' && <TasksView />}
           {currentView === 'callroom' && <CallRoomView />}
           {currentView === 'voting' && <VotingView />}
@@ -40,6 +55,11 @@ function AppContent() {
           onClose={() => setIsOracleOpen(false)}
         />
       </div>
+
+      <MobileBottomNav
+        currentView={currentView}
+        onChangeView={setCurrentView}
+      />
     </div>
   );
 }

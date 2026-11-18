@@ -408,6 +408,37 @@ export async function onRequest(context) {
       });
     }
 
+    if (pathname === '/api/auth/login-as' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const { github_numeric_id, email, member_id } = body;
+
+      let member = null;
+      if (member_id) {
+        member = await env.DB.prepare('SELECT * FROM members WHERE id = ?').bind(Number(member_id)).first();
+      } else if (email) {
+        member = await env.DB.prepare('SELECT * FROM members WHERE LOWER(email) = LOWER(?)').bind(email).first();
+      } else if (github_numeric_id !== undefined && github_numeric_id !== null) {
+        member = await env.DB.prepare('SELECT * FROM members WHERE github_numeric_id = ?').bind(Number(github_numeric_id)).first();
+      }
+
+      if (!member || !member.is_allowed) {
+        return jsonResponse({ error: 'Access Denied: Member not found or not approved.' }, 403);
+      }
+
+      const sessionToken = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      await env.DB.prepare("INSERT INTO sessions (token, member_id, created_at, expires_at) VALUES (?, ?, datetime('now'), ?)").bind(sessionToken, member.id, expiresAt).run();
+
+      const headers = new Headers();
+      headers.set('Content-Type', 'application/json');
+      headers.append('Set-Cookie', `frontier_session=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`);
+
+      return new Response(JSON.stringify({ user: member, message: 'Logged in successfully', token: sessionToken }), {
+        status: 200,
+        headers
+      });
+    }
+
     // --------------------------------------------------------------------------
     // 3. DASHBOARD (PERSONAL & STATS)
     // --------------------------------------------------------------------------
