@@ -198,7 +198,6 @@ export function VotingView() {
   const session = sessionData?.session;
   const candidates = sessionData?.candidates || [];
   const tally = sessionData?.tally || [];
-  const canManageSession = Boolean(isHost || (session && Number(session.created_by) === Number(currentUser?.id)));
 
   return (
     <div className="view-container">
@@ -209,14 +208,12 @@ export function VotingView() {
           <p>Anonymous peer feedback on engineer performance and completed project deliverables</p>
         </div>
 
-        {/* Action Controls for Host & Session Creator */}
-        {canManageSession && (
+        {/* Lead-Only Action Controls */}
+        {isHost && (
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            {isHost && (
-              <button className="btn btn-primary" onClick={() => setIsLaunchModalOpen(true)}>
-                <Plus size={16} /> Host Review Round
-              </button>
-            )}
+            <button className="btn btn-primary" onClick={() => setIsLaunchModalOpen(true)}>
+              <Plus size={16} /> Host Review Round
+            </button>
 
             {session?.status === 'ACTIVE' && (
               <button className="btn btn-secondary" onClick={() => setIsCloseModalOpen(true)}>
@@ -224,7 +221,7 @@ export function VotingView() {
               </button>
             )}
 
-            {isHost && session?.status === 'CLOSED' && (
+            {session?.status === 'CLOSED' && (
               <button className="btn btn-secondary" onClick={handleReopenSession}>
                 <RotateCcw size={16} /> Reopen Round
               </button>
@@ -585,8 +582,8 @@ export function VotingView() {
         </Modal>
       )}
 
-      {/* Close Round Confirmation Modal */}
-      {canManageSession && (
+      {/* Close Round Confirmation Modal (Lead Only) */}
+      {isHost && (
         <ConfirmModal
           isOpen={isCloseModalOpen}
           onClose={() => setIsCloseModalOpen(false)}
