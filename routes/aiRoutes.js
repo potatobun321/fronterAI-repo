@@ -362,7 +362,7 @@ export async function handleAiRoutes(req, res, pathname, method) {
         try {
           db.exec('BEGIN');
           db.prepare("UPDATE members SET is_host = 1, role = 'Team Host & Lead', team_track = 'lead' WHERE id = ?").run(targetMemberId);
-          db.prepare("UPDATE members SET is_host = 0, role = 'Software Engineer' WHERE id = ?").run(currentUser.id);
+          db.prepare("UPDATE members SET is_host = 0, role = 'Software Engineer', team_track = 'backend' WHERE id = ?").run(currentUser.id);
           db.exec('COMMIT');
         } catch (txErr) {
           try { db.exec('ROLLBACK'); } catch (_) {}
