@@ -114,6 +114,7 @@ export async function handleAuthRoutes(req, res, pathname, method, urlObj) {
       const googleUser = await userRes.json();
       const googleSub = googleUser.sub;   // Stable unique Google user ID
       const googleEmail = googleUser.email;
+      const googleName = googleUser.name || googleUser.given_name || (googleEmail ? googleEmail.split('@')[0] : 'Member');
 
       // Check allowlist:
       let member = null;
@@ -124,7 +125,7 @@ export async function handleAuthRoutes(req, res, pathname, method, urlObj) {
       if (isHostEmail) {
         member = db.prepare('SELECT * FROM members WHERE is_host = 1 OR id = 1').get();
         if (member) {
-          db.prepare('UPDATE members SET email = ?, google_sub = ?, is_host = 1, is_allowed = 1 WHERE id = ?').run(googleEmail, googleSub, member.id);
+          db.prepare('UPDATE members SET name = ?, email = ?, google_sub = ?, is_host = 1, is_allowed = 1 WHERE id = ?').run(googleName, googleEmail, googleSub, member.id);
           member = db.prepare('SELECT * FROM members WHERE id = ?').get(member.id);
         }
       }
@@ -132,6 +133,10 @@ export async function handleAuthRoutes(req, res, pathname, method, urlObj) {
       // 2. By google_sub (returning users)
       if (!member) {
         member = db.prepare('SELECT * FROM members WHERE google_sub = ?').get(googleSub);
+        if (member) {
+          db.prepare('UPDATE members SET name = COALESCE(?, name), email = COALESCE(email, ?) WHERE id = ?').run(googleName, googleEmail, member.id);
+          member = db.prepare('SELECT * FROM members WHERE id = ?').get(member.id);
+        }
       }
 
       // 3. By email (prioritize approved members)
@@ -139,7 +144,7 @@ export async function handleAuthRoutes(req, res, pathname, method, urlObj) {
         member = db.prepare('SELECT * FROM members WHERE LOWER(email) = LOWER(?) ORDER BY is_allowed DESC').get(googleEmail);
         // On first login: bind google_sub and email to the member record
         if (member) {
-          db.prepare('UPDATE members SET google_sub = ?, email = COALESCE(email, ?) WHERE id = ?').run(googleSub, googleEmail, member.id);
+          db.prepare('UPDATE members SET name = COALESCE(?, name), google_sub = ?, email = COALESCE(email, ?) WHERE id = ?').run(googleName, googleSub, googleEmail, member.id);
           member = db.prepare('SELECT * FROM members WHERE id = ?').get(member.id);
         }
       }
