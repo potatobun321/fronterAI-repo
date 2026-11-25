@@ -3,7 +3,7 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Modal } from './Modal';
-import { Video, Calendar, Plus, ExternalLink, Radio } from 'lucide-react';
+import { Video, Calendar, Plus, ExternalLink, Radio, Trash2, Square } from 'lucide-react';
 
 export function CallRoomView() {
   const { isHost } = useAuth();
@@ -33,6 +33,9 @@ export function CallRoomView() {
 
   useEffect(() => {
     loadMeetings();
+    const onWorkspaceUpdate = () => loadMeetings();
+    window.addEventListener('frontier:workspace-updated', onWorkspaceUpdate);
+    return () => window.removeEventListener('frontier:workspace-updated', onWorkspaceUpdate);
   }, []);
 
   const handleScheduleMeeting = async (e) => {
@@ -58,8 +61,39 @@ export function CallRoomView() {
     }
   };
 
+  const handlePing = async (eventId) => {
+    try {
+      await api.pingMeeting(eventId);
+      toast.success('Meeting is now LIVE');
+      await loadMeetings();
+    } catch (err) {
+      toast.error(`Failed to go live: ${err.message}`);
+    }
+  };
+
+  const handleEnd = async (eventId) => {
+    try {
+      await api.endMeeting(eventId);
+      toast.info('Live meeting ended');
+      await loadMeetings();
+    } catch (err) {
+      toast.error(`Failed to end meeting: ${err.message}`);
+    }
+  };
+
+  const handleDeleteEvent = async (eventId) => {
+    try {
+      await api.deleteCalendarEvent(eventId);
+      toast.info('Event deleted');
+      await loadMeetings();
+    } catch (err) {
+      toast.error(`Failed to delete event: ${err.message}`);
+    }
+  };
+
   const slots = meetingData?.slots || [];
   const events = meetingData?.events || [];
+  const liveEvent = events.find(ev => Number(ev.is_live) === 1);
 
   return (
     <div className="view-container">
@@ -80,6 +114,30 @@ export function CallRoomView() {
         <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading bridge slots...</div>
       ) : (
         <>
+          {liveEvent && (
+            <div className="card" style={{ border: '1px solid var(--google-green)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--google-green)' }}></span>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.94rem' }}>LIVE NOW: {liveEvent.title}</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Audience: {liveEvent.target_audience}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {(liveEvent.join_url || liveEvent.meeting_link) && (
+                  <a href={liveEvent.join_url || `/api/meetings/join/${liveEvent.id}`} target="_blank" rel="noreferrer" className="btn btn-primary" style={{ fontSize: '0.8rem' }}>
+                    <Video size={14} /> Join Live Call
+                  </a>
+                )}
+                {isHost && (
+                  <button className="btn btn-secondary" style={{ fontSize: '0.8rem' }} onClick={() => handleEnd(liveEvent.id)}>
+                    <Square size={13} /> End
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Active Companion Bridges */}
           <div>
             <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -104,7 +162,7 @@ export function CallRoomView() {
                   </div>
 
                   <a
-                    href={`/api/meetings/join/${slot.id}`}
+                    href={`/api/meetings/join-slot/${slot.id}`}
                     target="_blank"
                     rel="noreferrer"
                     className="btn btn-secondary"
@@ -132,6 +190,7 @@ export function CallRoomView() {
                     <th>Date & Time</th>
                     <th>Target Audience</th>
                     <th>Bridge Link</th>
+                    {isHost && <th>Controls</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -143,15 +202,20 @@ export function CallRoomView() {
                         </span>
                       </td>
                       <td>
-                        <div style={{ fontWeight: 600 }}>{ev.title}</div>
+                        <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>{ev.title}</span>
+                          {Number(ev.is_live) === 1 && (
+                            <span style={{ fontSize: '0.68rem', color: 'var(--google-green)', fontWeight: 700 }}>LIVE</span>
+                          )}
+                        </div>
                         {ev.description && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{ev.description}</div>}
                       </td>
                       <td>{ev.event_date} at {ev.time_label}</td>
                       <td>{ev.target_audience}</td>
                       <td>
-                        {ev.meeting_slot_id ? (
+                        {ev.join_url || ev.meeting_link ? (
                           <a
-                            href={`/api/meetings/join/${ev.meeting_slot_id}`}
+                            href={ev.join_url || `/api/meetings/join/${ev.id}`}
                             target="_blank"
                             rel="noreferrer"
                             className="btn btn-secondary"
@@ -163,11 +227,29 @@ export function CallRoomView() {
                           <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>None</span>
                         )}
                       </td>
+                      {isHost && (
+                        <td>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            {Number(ev.is_live) === 1 ? (
+                              <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.74rem' }} onClick={() => handleEnd(ev.id)}>
+                                End
+                              </button>
+                            ) : (
+                              <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.74rem', color: 'var(--google-green)' }} onClick={() => handlePing(ev.id)}>
+                                Go Live
+                              </button>
+                            )}
+                            <button className="btn-icon" style={{ color: 'var(--google-red)', padding: '4px' }} onClick={() => handleDeleteEvent(ev.id)} title="Delete event">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                   {events.length === 0 && (
                     <tr>
-                      <td colSpan={5} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                      <td colSpan={isHost ? 6 : 5} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
                         No scheduled syncs found.
                       </td>
                     </tr>

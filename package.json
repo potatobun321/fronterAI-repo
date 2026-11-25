@@ -9,6 +9,8 @@
     "dev": "node scripts/dev.mjs",
     "dev:server": "node --watch server.js",
     "dev:client": "vite",
+    "dev:cf": "wrangler dev",
+    "deploy": "wrangler deploy",
     "build": "vite build",
     "test": "node test_prototype.js"
   },
@@ -22,7 +24,7 @@
   "author": "Frontier AI Engineering Team",
   "license": "MIT",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.5.0"
   },
   "dependencies": {
     "lucide-react": "^1.74.0",

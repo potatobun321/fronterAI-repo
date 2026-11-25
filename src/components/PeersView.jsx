@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Modal } from './Modal';
 import { ConfirmModal } from './ConfirmModal';
-import { Users, UserPlus, ShieldAlert, ArrowRightLeft, Send, CheckCircle2, Clock } from 'lucide-react';
+import { Users, UserPlus, ShieldAlert, ArrowRightLeft, Send, CheckCircle2, Clock, Trash2 } from 'lucide-react';
 
 export function PeersView() {
   const { currentUser, isHost, members, loadMembers } = useAuth();
@@ -18,6 +18,8 @@ export function PeersView() {
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isTaskletModalOpen, setIsTaskletModalOpen] = useState(false);
   const [rejectMemberId, setRejectMemberId] = useState(null);
+  const [removeMemberTarget, setRemoveMemberTarget] = useState(null);
+  const [approvalTracks, setApprovalTracks] = useState({});
   const [isConfirmTransferOpen, setIsConfirmTransferOpen] = useState(false);
 
   // Onboard form (Google email first!)
@@ -83,12 +85,27 @@ export function PeersView() {
   };
 
   const handleApprove = async (memberId) => {
+    const selectedTrack = approvalTracks[memberId] || 'backend';
+    const assignedRole = selectedTrack === 'frontend' ? 'Frontend Engineer' : 'Backend Engineer';
     try {
-      await api.approveMember(memberId, 'Engineer', 'backend');
+      await api.approveMember(memberId, assignedRole, selectedTrack);
       toast.success('Access request approved');
       await loadPeersData();
     } catch (err) {
       toast.error(`Approval failed: ${err.message}`);
+    }
+  };
+
+  const executeRemoveMember = async () => {
+    if (!removeMemberTarget) return;
+    try {
+      await api.removeMember(removeMemberTarget.id);
+      toast.info(`Removed ${removeMemberTarget.name}`);
+      await loadPeersData();
+    } catch (err) {
+      toast.error(`Removal failed: ${err.message}`);
+    } finally {
+      setRemoveMemberTarget(null);
     }
   };
 
@@ -192,7 +209,16 @@ export function PeersView() {
                       <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{m.name}</div>
                       <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>{m.email || `@${m.handle}`}</div>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <select
+                        className="form-select"
+                        style={{ padding: '4px 8px', fontSize: '0.76rem', width: 'auto' }}
+                        value={approvalTracks[m.id] || 'backend'}
+                        onChange={e => setApprovalTracks(prev => ({ ...prev, [m.id]: e.target.value }))}
+                      >
+                        <option value="backend">Backend</option>
+                        <option value="frontend">Frontend</option>
+                      </select>
                       <button className="btn btn-primary" style={{ padding: '4px 10px', fontSize: '0.76rem' }} onClick={() => handleApprove(m.id)}>
                         Approve
                       </button>
@@ -228,8 +254,19 @@ export function PeersView() {
                     )}
                   </div>
 
-                  <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                    {m.role}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{m.role}</span>
+                    {isHost && m.id !== currentUser?.id && (
+                      <button
+                        className="btn-icon"
+                        style={{ color: 'var(--google-red)', padding: '4px' }}
+                        title={`Remove ${m.name}`}
+                        aria-label={`Remove ${m.name}`}
+                        onClick={() => setRemoveMemberTarget(m)}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -465,6 +502,17 @@ export function PeersView() {
         title="Reject Access Request"
         message="Are you sure you want to reject and purge this access request?"
         confirmText="Reject Request"
+        isDestructive={true}
+      />
+
+      {/* Remove Member Confirm Modal */}
+      <ConfirmModal
+        isOpen={Boolean(removeMemberTarget)}
+        onClose={() => setRemoveMemberTarget(null)}
+        onConfirm={executeRemoveMember}
+        title="Remove Team Member"
+        message={`Permanently remove ${removeMemberTarget?.name} (@${removeMemberTarget?.handle}) from the Frontier AI allowlist?`}
+        confirmText="Remove Member"
         isDestructive={true}
       />
 

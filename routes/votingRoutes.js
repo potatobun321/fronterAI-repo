@@ -244,6 +244,14 @@ export async function handleVotingRoutes(req, res, pathname, method, urlObj) {
       sessionId = activeSess ? activeSess.id : 1;
     }
 
+    const session = db.prepare('SELECT id, status FROM voting_sessions WHERE id = ?').get(sessionId);
+    if (!session) {
+      return sendJson(res, 404, { error: 'Voting session not found.' });
+    }
+    if (session.status !== 'ACTIVE') {
+      return sendJson(res, 400, { error: 'This voting session is closed and no longer issuing ballot tokens.' });
+    }
+
     const existing = db.prepare('SELECT * FROM voting_eligibility WHERE session_id = ? AND member_id = ?')
       .get(sessionId, currentUser.id);
 
@@ -275,12 +283,20 @@ export async function handleVotingRoutes(req, res, pathname, method, urlObj) {
   // Phase 2: Cast anonymous ballot
   if (pathname === '/api/voting/cast' && method === 'POST') {
     const body = await parseBody(req);
-    const { session_id, option_id, candidate_id, rating, token } = body;
+    const { session_id, option_id, candidate_id, rating, ratings, token } = body;
     const targetCandidateId = candidate_id || option_id || 1;
     const numRating = Math.max(1, Math.min(5, parseInt(rating || 5, 10)));
 
     if (!session_id || !token) {
       return sendJson(res, 400, { error: 'session_id and token are required' });
+    }
+
+    const session = db.prepare('SELECT id, status FROM voting_sessions WHERE id = ?').get(session_id);
+    if (!session) {
+      return sendJson(res, 404, { error: 'Voting session not found.' });
+    }
+    if (session.status !== 'ACTIVE') {
+      return sendJson(res, 400, { error: 'This voting session is closed and no longer accepting ballots.' });
     }
 
     const verification = verifyBallotToken(session_id, token);
@@ -297,38 +313,45 @@ export async function handleVotingRoutes(req, res, pathname, method, urlObj) {
 
     const alreadyUsed = db.prepare('SELECT * FROM used_tokens WHERE token_hash = ?').get(verification.tokenHash);
     if (alreadyUsed) {
-      const ballotsCount = db.prepare('SELECT COUNT(*) as count FROM ballots WHERE session_id = ?').get(session_id);
-      if (ballotsCount?.count === 0) {
-        db.prepare('DELETE FROM used_tokens WHERE token_hash = ?').run(verification.tokenHash);
-      } else {
-        logAudit(
-          'anonymous',
-          'DOUBLE_VOTE_BLOCKED',
-          `voting_session_${session_id}`,
-          `Attempted double-vote using spent ballot token.`,
-          'DENIED'
-        );
-        return sendJson(res, 409, { error: 'Double-voting prevented! This ballot token has already been cast.' });
-      }
+      logAudit(
+        'anonymous',
+        'DOUBLE_VOTE_BLOCKED',
+        `voting_session_${session_id}`,
+        `Attempted double-vote using spent ballot token.`,
+        'DENIED'
+      );
+      return sendJson(res, 409, { error: 'Double-voting prevented! This ballot token has already been cast.' });
     }
 
-    // Ensure valid option_id satisfying FOREIGN KEY (option_id) REFERENCES voting_options(id)
-    let optRow = db.prepare('SELECT id FROM voting_options WHERE session_id = ? AND (id = ? OR candidate_member_id = ?)').get(session_id, targetCandidateId, targetCandidateId);
-    if (!optRow) {
-      optRow = db.prepare('SELECT id FROM voting_options WHERE session_id = ? LIMIT 1').get(session_id);
+    const entriesToCast = Array.isArray(ratings) && ratings.length > 0
+      ? ratings.map(r => ({
+          targetId: r.option_id || r.candidate_id || 1,
+          score: Math.max(1, Math.min(5, parseInt(r.rating || 5, 10)))
+        }))
+      : [{ targetId: targetCandidateId, score: numRating }];
+
+    const resolvedBallots = [];
+    for (const entry of entriesToCast) {
+      let optRow = db.prepare('SELECT id FROM voting_options WHERE session_id = ? AND (id = ? OR candidate_member_id = ?)').get(session_id, entry.targetId, entry.targetId);
+      if (!optRow) {
+        optRow = db.prepare('SELECT id FROM voting_options WHERE session_id = ? LIMIT 1').get(session_id);
+      }
+      if (!optRow) {
+        const candMember = db.prepare('SELECT name FROM members WHERE id = ?').get(entry.targetId);
+        const optLabel = candMember?.name || `Option ${entry.targetId}`;
+        const ins = db.prepare('INSERT INTO voting_options (session_id, candidate_member_id, label) VALUES (?, ?, ?)').run(session_id, entry.targetId, optLabel);
+        optRow = { id: ins.lastInsertRowid };
+      }
+      resolvedBallots.push({ validOptionId: optRow.id, targetId: entry.targetId, score: entry.score });
     }
-    if (!optRow) {
-      const candMember = db.prepare('SELECT name FROM members WHERE id = ?').get(targetCandidateId);
-      const optLabel = candMember?.name || `Option ${targetCandidateId}`;
-      const ins = db.prepare('INSERT INTO voting_options (session_id, candidate_member_id, label) VALUES (?, ?, ?)').run(session_id, targetCandidateId, optLabel);
-      optRow = { id: ins.lastInsertRowid };
-    }
-    const validOptionId = optRow.id;
 
     try {
       db.exec('BEGIN');
       db.prepare('INSERT INTO used_tokens (token_hash, used_at) VALUES (?, ?)').run(verification.tokenHash, new Date().toISOString());
-      db.prepare('INSERT INTO ballots (session_id, option_id, candidate_member_id, rating) VALUES (?, ?, ?, ?)').run(session_id, validOptionId, targetCandidateId, numRating);
+      const insertBallot = db.prepare('INSERT INTO ballots (session_id, option_id, candidate_member_id, rating) VALUES (?, ?, ?, ?)');
+      for (const b of resolvedBallots) {
+        insertBallot.run(session_id, b.validOptionId, b.targetId, b.score);
+      }
       db.exec('COMMIT');
     } catch (txErr) {
       try { db.exec('ROLLBACK'); } catch (_) {}
@@ -339,7 +362,7 @@ export async function handleVotingRoutes(req, res, pathname, method, urlObj) {
       'anonymous_voter',
       'PEER_BALLOT_CAST',
       `voting_session_${session_id}`,
-      `Anonymous rating of ${numRating}/5 stars cast in review session #${session_id}. Zero voter linkage.`,
+      `Anonymous ballot (${resolvedBallots.length} rating${resolvedBallots.length > 1 ? 's' : ''}) cast in review session #${session_id}. Zero voter linkage.`,
       'SUCCESS'
     );
 

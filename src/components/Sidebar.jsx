@@ -10,7 +10,7 @@ export function Sidebar({ currentView, onChangeView, taskCount = 0, isCollapsed 
     { id: 'callroom', label: 'Call Room', icon: Video },
     { id: 'voting', label: 'Peer Review', icon: Vote },
     { id: 'peers', label: 'Team & Peers', icon: Users },
-    { id: 'settings', label: 'Governance & Logs', icon: Settings, hostOnly: true }
+    { id: 'settings', label: isHost ? 'Governance & Logs' : 'Governance', icon: Settings }
   ];
 
   const visibleNav = navItems.filter(item => !item.hostOnly || isHost);

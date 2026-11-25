@@ -10,7 +10,7 @@ export function MobileBottomNav({ currentView, onChangeView, taskCount = 0 }) {
     { id: 'callroom', label: 'Meet', icon: Video },
     { id: 'voting', label: 'Review', icon: Vote },
     { id: 'peers', label: 'Team', icon: Users },
-    { id: 'settings', label: 'Admin', icon: Settings, hostOnly: true }
+    { id: 'settings', label: isHost ? 'Admin' : 'Gov', icon: Settings }
   ];
 
   const visibleTabs = tabs.filter(t => !t.hostOnly || isHost);

@@ -3,7 +3,8 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Modal } from './Modal';
-import { Plus, CheckCircle2, Clock, AlertCircle, ExternalLink } from 'lucide-react';
+import { ConfirmModal } from './ConfirmModal';
+import { Plus, CheckCircle2, Clock, AlertCircle, ExternalLink, Trash2 } from 'lucide-react';
 
 export function TasksView() {
   const { currentUser, isHost, members } = useAuth();
@@ -17,6 +18,7 @@ export function TasksView() {
   const [isAllotModalOpen, setIsAllotModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [occError, setOccError] = useState(null);
 
   // Form states
@@ -44,6 +46,9 @@ export function TasksView() {
 
   useEffect(() => {
     loadTasks();
+    const onWorkspaceUpdate = () => loadTasks();
+    window.addEventListener('frontier:workspace-updated', onWorkspaceUpdate);
+    return () => window.removeEventListener('frontier:workspace-updated', onWorkspaceUpdate);
   }, []);
 
   const handleAllotTask = async (e) => {
@@ -62,6 +67,7 @@ export function TasksView() {
       setNewTitle('');
       setNewDesc('');
       toast.success('Task created successfully');
+      window.dispatchEvent(new CustomEvent('frontier:workspace-updated'));
       await loadTasks();
     } catch (err) {
       toast.error(`Error allotting task: ${err.message}`);
@@ -91,6 +97,7 @@ export function TasksView() {
       setIsUpdateModalOpen(false);
       setSelectedTask(null);
       toast.success('Task updated');
+      window.dispatchEvent(new CustomEvent('frontier:workspace-updated'));
       await loadTasks();
     } catch (err) {
       if (err.status === 409) {
@@ -99,6 +106,21 @@ export function TasksView() {
       } else {
         toast.error(`Failed to update task: ${err.message}`);
       }
+    }
+  };
+
+  const handleDeleteTask = async () => {
+    if (!selectedTask) return;
+    try {
+      await api.deleteTask(selectedTask.id);
+      setIsDeleteConfirmOpen(false);
+      setIsUpdateModalOpen(false);
+      setSelectedTask(null);
+      toast.info('Task deleted');
+      window.dispatchEvent(new CustomEvent('frontier:workspace-updated'));
+      await loadTasks();
+    } catch (err) {
+      toast.error(`Failed to delete task: ${err.message}`);
     }
   };
 
@@ -319,6 +341,15 @@ export function TasksView() {
         title={`Task #${selectedTask?.id}: ${selectedTask?.title}`}
         footer={
           <>
+            {isHost && selectedTask && (
+              <button
+                className="btn btn-secondary"
+                style={{ marginRight: 'auto', color: 'var(--google-red)' }}
+                onClick={() => setIsDeleteConfirmOpen(true)}
+              >
+                <Trash2 size={14} /> Delete
+              </button>
+            )}
             <button className="btn btn-secondary" onClick={() => setIsUpdateModalOpen(false)}>Cancel</button>
             <button className="btn btn-primary" onClick={handleUpdateTask}>Save Progress</button>
           </>
@@ -364,6 +395,16 @@ export function TasksView() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        onConfirm={handleDeleteTask}
+        title="Delete Sprint Task"
+        message={`Permanently delete Task #${selectedTask?.id} ("${selectedTask?.title}")?`}
+        confirmText="Delete Task"
+        isDestructive={true}
+      />
     </div>
   );
 }

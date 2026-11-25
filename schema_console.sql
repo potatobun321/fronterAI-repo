@@ -126,7 +126,9 @@ CREATE TABLE IF NOT EXISTS audit_events (
   action TEXT NOT NULL,
   target TEXT NOT NULL,
   details TEXT,
-  status TEXT NOT NULL
+  status TEXT NOT NULL,
+  prev_hash TEXT,
+  entry_hash TEXT
 );
 
 CREATE TABLE IF NOT EXISTS tasklets (

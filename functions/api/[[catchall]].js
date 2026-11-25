@@ -46,8 +46,10 @@ function isHostMember(member, env = {}) {
   return Number(member.is_host) === 1;
 }
 
+let schemaInitialized = false;
+
 async function ensureSchema(env) {
-  if (!env.DB) return;
+  if (!env.DB || schemaInitialized) return;
   try {
     await env.DB.prepare(`
       CREATE TABLE IF NOT EXISTS sessions (
@@ -91,6 +93,14 @@ async function ensureSchema(env) {
     await env.DB.prepare('ALTER TABLE voting_sessions ADD COLUMN target_member_id INTEGER').run();
   } catch (e) { }
 
+  try {
+    await env.DB.prepare('ALTER TABLE audit_events ADD COLUMN prev_hash TEXT').run();
+  } catch (e) { }
+
+  try {
+    await env.DB.prepare('ALTER TABLE audit_events ADD COLUMN entry_hash TEXT').run();
+  } catch (e) { }
+
   // Guarantee Host (id = 1) always exists with full permissions, and ensure non-leads are is_host = 0
   const hostEmail = (env && env.HOST_EMAIL) ? env.HOST_EMAIL.toLowerCase().trim() : null;
   const hostGithubId = (env && env.HOST_GITHUB_ID) ? Number(env.HOST_GITHUB_ID) : null;
@@ -119,6 +129,7 @@ async function ensureSchema(env) {
     // Clean up any non-host members whose team_track was left as 'lead'
     await env.DB.prepare("UPDATE members SET team_track = 'backend' WHERE is_host = 0 AND team_track = 'lead'").run();
   } catch (e) { }
+  schemaInitialized = true;
 }
 
 async function createSignedState(secret) {
@@ -185,12 +196,21 @@ async function getAuthMember(request, env) {
   }
 }
 
+async function computeAuditHash(prevHash, timestamp, actorHandle, action, target, details, status) {
+  const payload = `${prevHash || 'GENESIS'}|${timestamp}|${actorHandle}|${action}|${target}|${details || ''}|${status}`;
+  return sha256(payload);
+}
+
 async function logAudit(env, actorHandle, action, target, details, status = 'SUCCESS') {
   if (!env.DB) return;
   try {
+    const timestamp = new Date().toISOString();
+    const prev = await env.DB.prepare('SELECT entry_hash FROM audit_events ORDER BY id DESC LIMIT 1').first();
+    const prevHash = prev?.entry_hash || 'GENESIS';
+    const entryHash = await computeAuditHash(prevHash, timestamp, actorHandle, action, target, details, status);
     await env.DB.prepare(
-      "INSERT INTO audit_events (timestamp, actor_handle, action, target, details, status) VALUES (datetime('now'), ?, ?, ?, ?, ?)"
-    ).bind(actorHandle, action, target, details, status).run();
+      'INSERT INTO audit_events (timestamp, actor_handle, action, target, details, status, prev_hash, entry_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(timestamp, actorHandle, action, target, details, status, prevHash, entryHash).run();
   } catch (e) {
     console.error('Audit log error:', e);
   }
@@ -205,12 +225,15 @@ export async function onRequest(context) {
 
   // CORS Preflight
   if (method === 'OPTIONS') {
+    const allowedOrigin = env.BASE_URL || url.origin;
     return new Response(null, {
       status: 204,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': allowedOrigin,
+        'Access-Control-Allow-Credentials': 'true',
         'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Vary': 'Origin'
       }
     });
   }
@@ -417,6 +440,36 @@ export async function onRequest(context) {
         status: 200,
         headers
       });
+    }
+
+    if (pathname === '/api/auth/login-as' && method === 'POST') {
+      const isLocalDev = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+      if (!isLocalDev) {
+        return jsonResponse({ error: 'Not found' }, 404);
+      }
+      const body = await request.json().catch(() => ({}));
+      const { member_id, email, github_numeric_id } = body;
+      let target = null;
+      if (member_id) {
+        target = await env.DB.prepare('SELECT * FROM members WHERE id = ?').bind(member_id).first();
+      } else if (email) {
+        target = await env.DB.prepare('SELECT * FROM members WHERE LOWER(email) = LOWER(?)').bind(email).first();
+      } else if (github_numeric_id !== undefined && github_numeric_id !== null) {
+        target = await env.DB.prepare('SELECT * FROM members WHERE github_numeric_id = ?').bind(github_numeric_id).first();
+      }
+      if (!target || !target.is_allowed) {
+        return jsonResponse({ error: 'Access Denied: Account is not in the Frontier AI membership allowlist.' }, 403);
+      }
+      const sessionToken = crypto.randomUUID() + crypto.randomUUID().replace(/-/g, '');
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      await env.DB.prepare(
+        "INSERT INTO sessions (token, member_id, created_at, expires_at) VALUES (?, ?, datetime('now'), ?)"
+      ).bind(sessionToken, target.id, expiresAt).run();
+      await logAudit(env, target.handle, 'LOGIN_SUCCESS', 'auth_session', `Local wrangler dev login as ${target.name}.`);
+      const headers = new Headers();
+      headers.set('Content-Type', 'application/json');
+      headers.append('Set-Cookie', `frontier_session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`);
+      return new Response(JSON.stringify({ user: target, token: sessionToken, message: 'Logged in successfully' }), { status: 200, headers });
     }
 
 
@@ -706,6 +759,9 @@ export async function onRequest(context) {
       const { status, deliverable_url, deliverable_notes, version } = body;
       const existing = await env.DB.prepare('SELECT * FROM tasks WHERE id = ?').bind(taskId).first();
       if (!existing) return jsonResponse({ error: 'Task not found' }, 404);
+      if (!member.is_host && existing.assignee_id !== member.id) {
+        return jsonResponse({ error: 'Permission Denied: You can only update tasks assigned to you.' }, 403);
+      }
       if (version !== undefined && existing.version !== version) {
         return jsonResponse({ error: 'OCC Conflict: Task was modified by another teammate. Refresh.', code: 'CONCURRENCY_CONFLICT' }, 409);
       }
@@ -730,8 +786,19 @@ export async function onRequest(context) {
     // 6. MEETINGS & BRIDGES
     // --------------------------------------------------------------------------
     if (pathname === '/api/meetings/slots' && method === 'GET') {
-      const res = await env.DB.prepare('SELECT id, slot_code, slot_name, raw_url, last_used_at FROM meeting_slots').all();
+      const res = await env.DB.prepare('SELECT id, slot_code, slot_name, last_used_at FROM meeting_slots ORDER BY id ASC').all();
       return jsonResponse({ slots: res.results || [] });
+    }
+
+    if (pathname.startsWith('/api/meetings/join-slot/') && method === 'GET') {
+      const member = await getAuthMember(request, env);
+      if (!member) return new Response(null, { status: 302, headers: { 'Location': `${url.origin}/?error=unauthorized` } });
+      const slotId = pathname.split('/')[4];
+      const slot = await env.DB.prepare('SELECT * FROM meeting_slots WHERE id = ? OR slot_code = ?').bind(slotId, slotId).first();
+      if (!slot || !slot.raw_url) return jsonResponse({ error: 'Meeting bridge slot not found' }, 404);
+      await env.DB.prepare('UPDATE meeting_slots SET last_used_at = ? WHERE id = ?').bind(new Date().toISOString(), slot.id).run();
+      await logAudit(env, member.handle, 'MEETING_JOIN', 'meetings', `Joined ${slot.slot_name}`);
+      return new Response(null, { status: 302, headers: { 'Location': slot.raw_url } });
     }
 
     if (pathname.startsWith('/api/meetings/join/') && method === 'GET') {
@@ -1138,10 +1205,10 @@ export async function onRequest(context) {
     }
 
     if (pathname === '/api/voting/cast' && method === 'POST') {
-      const { token, session_id, option_id, candidate_id, rating } = await request.json();
+      const { token, session_id, option_id, candidate_id, rating, ratings } = await request.json();
       const targetCandidateId = candidate_id || option_id || 1;
       const numRating = Math.max(1, Math.min(5, parseInt(rating || 5, 10)));
-      if (!token || !session_id || !targetCandidateId) return jsonResponse({ error: 'Missing token or ballot payload' }, 400);
+      if (!token || !session_id) return jsonResponse({ error: 'Missing token or ballot payload' }, 400);
 
       const session = await env.DB.prepare("SELECT * FROM voting_sessions WHERE id = ? AND status = 'ACTIVE'").bind(session_id).first();
       if (!session) return jsonResponse({ error: 'Review session is closed or inactive' }, 400);
@@ -1154,47 +1221,50 @@ export async function onRequest(context) {
       if (expectedSig !== providedSig) return jsonResponse({ error: 'Cryptographic signature invalid' }, 403);
       const tokenHash = await sha256(token);
 
-      // Check double-spending & recover from orphaned tokens if ballots insert failed previously
       const used = await env.DB.prepare('SELECT * FROM used_tokens WHERE token_hash = ?').bind(tokenHash).first();
       if (used) {
-        const ballotsCount = await env.DB.prepare('SELECT COUNT(*) as count FROM ballots WHERE session_id = ?').bind(session_id).first();
-        if (ballotsCount?.count === 0) {
-          // Token was orphaned by prior FOREIGN KEY error; delete and let voter cast successfully
-          await env.DB.prepare('DELETE FROM used_tokens WHERE token_hash = ?').bind(tokenHash).run();
-        } else {
-          return jsonResponse({ error: 'Double-spending rejected: Token already cast' }, 409);
+        return jsonResponse({ error: 'Double-spending rejected: Token already cast' }, 409);
+      }
+
+      const entriesToCast = Array.isArray(ratings) && ratings.length > 0
+        ? ratings.map(r => ({
+            targetId: r.option_id || r.candidate_id || 1,
+            score: Math.max(1, Math.min(5, parseInt(r.rating || 5, 10)))
+          }))
+        : [{ targetId: targetCandidateId, score: numRating }];
+
+      const ballotStatements = [
+        env.DB.prepare("INSERT INTO used_tokens (token_hash, used_at) VALUES (?, datetime('now'))").bind(tokenHash)
+      ];
+
+      for (const entry of entriesToCast) {
+        let optRow = await env.DB.prepare(
+          'SELECT id FROM voting_options WHERE session_id = ? AND (id = ? OR candidate_member_id = ?)'
+        ).bind(session_id, entry.targetId, entry.targetId).first();
+
+        if (!optRow) {
+          optRow = await env.DB.prepare(
+            'SELECT id FROM voting_options WHERE session_id = ? LIMIT 1'
+          ).bind(session_id).first();
         }
+
+        if (!optRow) {
+          const candMember = await env.DB.prepare('SELECT name FROM members WHERE id = ?').bind(entry.targetId).first();
+          const optLabel = candMember?.name || `Option ${entry.targetId}`;
+          const insertOpt = await env.DB.prepare(
+            'INSERT INTO voting_options (session_id, candidate_member_id, label) VALUES (?, ?, ?)'
+          ).bind(session_id, entry.targetId, optLabel).run();
+          optRow = { id: insertOpt.meta.last_row_id };
+        }
+
+        ballotStatements.push(
+          env.DB.prepare('INSERT INTO ballots (session_id, option_id, candidate_member_id, rating) VALUES (?, ?, ?, ?)').bind(session_id, optRow.id, entry.targetId, entry.score)
+        );
       }
 
-      // Guarantee valid option_id satisfying FOREIGN KEY (option_id) REFERENCES voting_options(id)
-      let optRow = await env.DB.prepare(
-        'SELECT id FROM voting_options WHERE session_id = ? AND (id = ? OR candidate_member_id = ?)'
-      ).bind(session_id, targetCandidateId, targetCandidateId).first();
+      await env.DB.batch(ballotStatements);
 
-      if (!optRow) {
-        optRow = await env.DB.prepare(
-          'SELECT id FROM voting_options WHERE session_id = ? LIMIT 1'
-        ).bind(session_id).first();
-      }
-
-      if (!optRow) {
-        const candMember = await env.DB.prepare('SELECT name FROM members WHERE id = ?').bind(targetCandidateId).first();
-        const optLabel = candMember?.name || `Option ${targetCandidateId}`;
-        const insertOpt = await env.DB.prepare(
-          'INSERT INTO voting_options (session_id, candidate_member_id, label) VALUES (?, ?, ?)'
-        ).bind(session_id, targetCandidateId, optLabel).run();
-        optRow = { id: insertOpt.meta.last_row_id };
-      }
-
-      const validOptionId = optRow.id;
-
-      // Atomic execution: insert ballot and burn token together
-      await env.DB.batch([
-        env.DB.prepare("INSERT INTO used_tokens (token_hash, used_at) VALUES (?, datetime('now'))").bind(tokenHash),
-        env.DB.prepare("INSERT INTO ballots (session_id, option_id, candidate_member_id, rating) VALUES (?, ?, ?, ?)").bind(session_id, validOptionId, targetCandidateId, numRating)
-      ]);
-
-      await logAudit(env, 'ANONYMOUS_VOTER', 'VOTE_CAST', 'voting', `Anonymous rating of ${numRating}/5 cast in Session #${session_id}`);
+      await logAudit(env, 'ANONYMOUS_VOTER', 'VOTE_CAST', 'voting', `Anonymous ballot (${entriesToCast.length} rating${entriesToCast.length > 1 ? 's' : ''}) cast in Session #${session_id}`);
       return jsonResponse({ success: true });
     }
 
@@ -1365,6 +1435,29 @@ export async function onRequest(context) {
       if (!member || !member.is_host) return jsonResponse({ error: 'Restricted to Team Lead' }, 403);
       const res = await env.DB.prepare('SELECT * FROM audit_events ORDER BY id DESC LIMIT 100').all();
       return jsonResponse({ events: res.results || [], logs: res.results || [] });
+    }
+
+    if (pathname === '/api/audit/verify' && method === 'GET') {
+      const member = await getAuthMember(request, env);
+      if (!member || !member.is_host) return jsonResponse({ error: 'Restricted to Team Lead' }, 403);
+      const res = await env.DB.prepare('SELECT * FROM audit_events ORDER BY id ASC').all();
+      const rows = res.results || [];
+      let expectedPrev = 'GENESIS';
+      for (const row of rows) {
+        if (!row.entry_hash) {
+          expectedPrev = row.entry_hash || 'GENESIS';
+          continue;
+        }
+        if (row.prev_hash !== expectedPrev) {
+          return jsonResponse({ valid: false, brokenAtId: row.id, totalChecked: rows.length });
+        }
+        const recomputed = await computeAuditHash(row.prev_hash, row.timestamp, row.actor_handle, row.action, row.target, row.details, row.status);
+        if (recomputed !== row.entry_hash) {
+          return jsonResponse({ valid: false, brokenAtId: row.id, totalChecked: rows.length });
+        }
+        expectedPrev = row.entry_hash;
+      }
+      return jsonResponse({ valid: true, totalChecked: rows.length });
     }
 
     // --------------------------------------------------------------------------
@@ -1576,11 +1669,13 @@ When performing or preparing an operational action, output a concise friendly su
           });
         }
 
-        const modelsToTry = [
-          'qwen/qwen3.8-27b',
-          'llama-3.3-70b-versatile',
-          'llama-3.1-8b-instant'
-        ];
+        const modelsToTry = env.GROQ_MODEL
+          ? env.GROQ_MODEL.split(',').map(m => m.trim()).filter(Boolean)
+          : [
+              'qwen/qwen3.8-27b',
+              'llama-3.3-70b-versatile',
+              'llama-3.1-8b-instant'
+            ];
         for (const modelName of modelsToTry) {
           try {
             const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -1635,10 +1730,35 @@ When performing or preparing an operational action, output a concise friendly su
         }
       }
 
+      // Extract action payload if emitted by model
+      let detectedAction = null;
+      const actionMatch = modelReply.match(/```action\s*([\s\S]*?)```/);
+      if (actionMatch) {
+        try { detectedAction = JSON.parse(actionMatch[1].trim()); } catch (_) {}
+      }
+
       // Record model reply
       await env.DB.prepare("INSERT INTO ai_messages (thread_id, sender_role, content, created_at) VALUES (?, 'model', ?, datetime('now'))").bind(activeThreadId, modelReply).run();
       await env.DB.prepare("UPDATE ai_threads SET updated_at = datetime('now') WHERE id = ?").bind(activeThreadId).run();
-      return jsonResponse({ reply: modelReply, threadId: activeThreadId });
+
+      // Persist long-term member memory note when user states focus/preferences
+      try {
+        const rememberMatch = message.match(/\b(?:remember that|my focus is|i am working on|i'm working on)\s+(.{4,120})/i);
+        if (rememberMatch) {
+          const existingMem = await env.DB.prepare('SELECT memory_data FROM member_memories WHERE member_id = ?').bind(memberId).first();
+          let parsed = {};
+          try { parsed = existingMem?.memory_data ? JSON.parse(existingMem.memory_data) : {}; } catch (_) {}
+          parsed.focus_area = rememberMatch[1].trim();
+          parsed.last_updated = new Date().toISOString();
+          await env.DB.prepare(`
+            INSERT INTO member_memories (member_id, memory_data, updated_at)
+            VALUES (?, ?, datetime('now'))
+            ON CONFLICT(member_id) DO UPDATE SET memory_data = excluded.memory_data, updated_at = excluded.updated_at
+          `).bind(memberId, JSON.stringify(parsed)).run();
+        }
+      } catch (_) {}
+
+      return jsonResponse({ reply: modelReply, threadId: activeThreadId, action: detectedAction });
     }
 
     if (pathname === '/api/ai/threads' && method === 'GET') {

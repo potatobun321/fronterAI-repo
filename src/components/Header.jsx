@@ -1,11 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Sun, Moon, Sparkles, User, LogOut, ShieldCheck, ChevronDown, Menu } from 'lucide-react';
 
 export function Header({ onToggleOracle, isOracleOpen, onToggleSidebar, isSidebarCollapsed }) {
   const { currentUser, isHost, members, theme, toggleTheme, loginAs, logout } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showDevMenu, setShowDevMenu] = useState(false);
+  const menuRef = useRef(null);
   const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setShowUserMenu(false);
+        setShowDevMenu(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowUserMenu(false);
+        setShowDevMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   return (
     <header className="app-header">
@@ -42,8 +65,9 @@ export function Header({ onToggleOracle, isOracleOpen, onToggleSidebar, isSideba
         </button>
 
         {/* User Account Menu / Login Button */}
+        <div ref={menuRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}>
         {currentUser ? (
-          <div style={{ position: 'relative' }}>
+          <div>
             <button
               className="btn btn-secondary"
               style={{ padding: '6px 12px', fontSize: '0.82rem' }}
@@ -141,14 +165,71 @@ export function Header({ onToggleOracle, isOracleOpen, onToggleSidebar, isSideba
             )}
           </div>
         ) : (
-          <a
-            href="/api/auth/google"
-            className="btn btn-primary"
-            style={{ padding: '6px 14px', fontSize: '0.82rem', textDecoration: 'none' }}
-          >
-            <User size={15} /> Sign In with Google
-          </a>
+          <>
+            {isLocalhost && members.length > 0 && (
+              <div>
+                <button
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 12px', fontSize: '0.82rem' }}
+                  onClick={() => setShowDevMenu(prev => !prev)}
+                >
+                  Dev Sign-In <ChevronDown size={14} style={{ opacity: 0.6 }} />
+                </button>
+                {showDevMenu && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      right: 0,
+                      marginTop: '6px',
+                      background: 'var(--bg-surface)',
+                      border: '1px solid var(--border-default)',
+                      borderRadius: 'var(--radius-md)',
+                      boxShadow: 'var(--shadow-md)',
+                      width: '220px',
+                      padding: '8px',
+                      zIndex: 100
+                    }}
+                  >
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', padding: '4px 6px', marginBottom: '4px' }}>
+                      Local Dev Persona
+                    </div>
+                    {members.map(m => (
+                      <button
+                        key={m.id}
+                        onClick={() => { loginAs({ member_id: m.id }); setShowDevMenu(false); }}
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '6px 8px',
+                          background: 'transparent',
+                          color: 'var(--text-primary)',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          fontSize: '0.78rem',
+                          display: 'flex',
+                          justifyContent: 'space-between'
+                        }}
+                      >
+                        <span>{m.name}</span>
+                        <span style={{ opacity: 0.6 }}>{m.is_host === 1 ? 'Lead' : 'Member'}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <a
+              href="/api/auth/google"
+              className="btn btn-primary"
+              style={{ padding: '6px 14px', fontSize: '0.82rem', textDecoration: 'none' }}
+            >
+              <User size={15} /> Sign In with Google
+            </a>
+          </>
         )}
+        </div>
 
         {/* Oracle AI Assistant Pill */}
         <button

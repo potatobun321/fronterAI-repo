@@ -54,10 +54,23 @@ export const api = {
   getTasks: () => request('/api/tasks'),
   createTask: (task) => request('/api/tasks', { method: 'POST', body: JSON.stringify(task) }),
   updateTask: (taskId, update) => request(`/api/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify(update) }),
+  deleteTask: (taskId) => request(`/api/tasks/${taskId}`, { method: 'DELETE' }),
 
   // Meetings & Calendar
-  getMeetings: () => request('/api/meetings'),
-  createMeeting: (event) => request('/api/calendar/events', { method: 'POST', body: JSON.stringify(event) }),
+  getMeetings: async () => {
+    const [slotsRes, calRes] = await Promise.all([
+      request('/api/meetings/slots'),
+      request('/api/calendar')
+    ]);
+    return {
+      slots: slotsRes.slots || [],
+      events: calRes.events || []
+    };
+  },
+  createMeeting: (event) => request('/api/calendar', { method: 'POST', body: JSON.stringify(event) }),
+  pingMeeting: (eventId) => request(`/api/calendar/${eventId}/ping`, { method: 'POST' }),
+  endMeeting: (eventId) => request(`/api/calendar/${eventId}/end`, { method: 'POST' }),
+  deleteCalendarEvent: (eventId) => request(`/api/calendar/${eventId}`, { method: 'DELETE' }),
 
   // Voting & Peer Review
   getVotingCurrent: (sessionId = 0) => request(`/api/voting/current${sessionId ? `?session_id=${sessionId}` : ''}`),
@@ -73,6 +86,7 @@ export const api = {
   onboardMember: (member) => request('/api/members', { method: 'POST', body: JSON.stringify(member) }),
   approveMember: (memberId, role, team_track) => request(`/api/members/${memberId}/approve`, { method: 'POST', body: JSON.stringify({ role, team_track }) }),
   rejectMember: (memberId) => request(`/api/members/${memberId}/reject`, { method: 'POST' }),
+  removeMember: (memberId) => request(`/api/members/${memberId}`, { method: 'DELETE' }),
   transferHost: (targetMemberId) => request('/api/members/transfer-host', { method: 'POST', body: JSON.stringify({ target_member_id: targetMemberId }) }),
 
   // Peer Tasklets
@@ -81,16 +95,20 @@ export const api = {
   updateTasklet: (taskletId, status) => request(`/api/tasklets/${taskletId}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
 
   // Governance & Tickets
-  getTickets: () => request('/api/governance/tickets'),
-  createTicket: (ticket) => request('/api/governance/tickets', { method: 'POST', body: JSON.stringify(ticket) }),
-  signOffTicket: (ticketId) => request(`/api/governance/tickets/${ticketId}/sign-off`, { method: 'POST' }),
-  denyTicket: (ticketId) => request(`/api/governance/tickets/${ticketId}/deny`, { method: 'POST' }),
+  getTickets: () => request('/api/tickets'),
+  createTicket: (ticket) => request('/api/tickets', { method: 'POST', body: JSON.stringify(ticket) }),
+  signOffTicket: (ticketId) => request(`/api/tickets/${ticketId}/approve`, { method: 'POST' }),
+  denyTicket: (ticketId) => request(`/api/tickets/${ticketId}/deny`, { method: 'POST' }),
 
   // Audit Logs & Disaster Recovery
   getAuditEvents: () => request('/api/audit'),
-  exportBackup: () => request('/api/dr/export'),
+  verifyAuditChain: () => request('/api/audit/verify'),
+  exportBackup: () => request('/api/disaster-recovery/export', { method: 'POST' }),
 
   // Frontier Oracle AI
+  getOracleThreads: () => request('/api/ai/threads'),
+  getOracleMessages: (threadId) => request(`/api/ai/threads/${threadId}/messages`),
+  deleteOracleThreads: () => request('/api/ai/threads', { method: 'DELETE' }),
   chatOracle: (message, threadId = null) => request('/api/ai/chat', { method: 'POST', body: JSON.stringify({ message, threadId }) }),
   executeAction: (action, payload) => request('/api/ai/execute', { method: 'POST', body: JSON.stringify({ action, payload }) })
 };

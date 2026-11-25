@@ -29,6 +29,7 @@ export function VotingView() {
   // Voting ballot state
   const [selectedCandidate, setSelectedCandidate] = useState('');
   const [rating, setRating] = useState(5);
+  const [pillarRatings, setPillarRatings] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [voteSuccess, setVoteSuccess] = useState(false);
 
@@ -38,6 +39,9 @@ export function VotingView() {
       setSessionData(res);
       if (res?.candidates && res.candidates.length > 0) {
         setSelectedCandidate(String(res.candidates[0].id));
+        const initialRatings = {};
+        res.candidates.forEach(c => { initialRatings[c.id] = 5; });
+        setPillarRatings(initialRatings);
       }
     } catch (e) {
       console.error('Failed to load voting data:', e);
@@ -76,24 +80,37 @@ export function VotingView() {
     }
   };
 
+  const isMultiCriteria = (sessionData?.session?.session_type === 'PROJECT_QUALITY' || sessionData?.session?.session_type === 'PROJECT_EXPERIENCE') && (sessionData?.candidates?.length || 0) > 1;
+
   const handleCastVote = async (e) => {
     e.preventDefault();
-    if (!unlinkedToken || !selectedCandidate) {
+    if (!unlinkedToken || (!isMultiCriteria && !selectedCandidate)) {
       toast.error('Please choose a target option and claim a voting token.');
       return;
     }
 
     setSubmitting(true);
     try {
-      const candidateId = parseInt(selectedCandidate, 10);
-      await api.castBallot({
-        session_id: sessionData.session.id,
-        token: unlinkedToken,
-        option_id: candidateId,
-        candidate_id: candidateId,
-        candidate_member_id: candidateId,
-        rating: parseInt(rating, 10)
-      });
+      if (isMultiCriteria) {
+        await api.castBallot({
+          session_id: sessionData.session.id,
+          token: unlinkedToken,
+          ratings: sessionData.candidates.map(c => ({
+            option_id: c.id,
+            rating: parseInt(pillarRatings[c.id] || 5, 10)
+          }))
+        });
+      } else {
+        const candidateId = parseInt(selectedCandidate, 10);
+        await api.castBallot({
+          session_id: sessionData.session.id,
+          token: unlinkedToken,
+          option_id: candidateId,
+          candidate_id: candidateId,
+          candidate_member_id: candidateId,
+          rating: parseInt(rating, 10)
+        });
+      }
       setVoteSuccess(true);
       setUnlinkedToken(null);
       toast.success('Ballot deposited successfully');
@@ -371,37 +388,65 @@ export function VotingView() {
                     <span>{tokenMsg}</span>
                   </div>
 
-                  <div className="form-group">
-                    <label>Choose Evaluation Option / Pillar *</label>
-                    <select
-                      className="form-select"
-                      value={selectedCandidate}
-                      onChange={e => setSelectedCandidate(e.target.value)}
-                      required
-                    >
-                      <option value="">Select option...</option>
-                      {candidates.map(c => (
-                        <option key={c.id} value={c.id}>{c.name || c.label}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                      <label style={{ margin: 0 }}>Rating (1 to 5 Stars)</label>
-                      <span style={{ fontWeight: 600, color: 'var(--google-amber)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Star size={14} fill="currentColor" /> {rating} / 5
-                      </span>
+                  {isMultiCriteria ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {candidates.map(c => {
+                        const val = pillarRatings[c.id] || 5;
+                        return (
+                          <div key={c.id} className="form-group" style={{ background: 'var(--bg-surface-elevated)', padding: '10px 12px', borderRadius: 'var(--radius-sm)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                              <label style={{ margin: 0, fontSize: '0.84rem' }}>{c.label || c.name}</label>
+                              <span style={{ fontWeight: 600, color: 'var(--google-amber)', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.82rem' }}>
+                                <Star size={13} fill="currentColor" /> {val} / 5
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min="1"
+                              max="5"
+                              value={val}
+                              onChange={e => setPillarRatings(prev => ({ ...prev, [c.id]: parseInt(e.target.value, 10) }))}
+                              style={{ width: '100%', accentColor: 'var(--google-blue)' }}
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="5"
-                      value={rating}
-                      onChange={e => setRating(e.target.value)}
-                      style={{ width: '100%', accentColor: 'var(--google-blue)' }}
-                    />
-                  </div>
+                  ) : (
+                    <>
+                      <div className="form-group">
+                        <label>Choose Evaluation Option / Pillar *</label>
+                        <select
+                          className="form-select"
+                          value={selectedCandidate}
+                          onChange={e => setSelectedCandidate(e.target.value)}
+                          required
+                        >
+                          <option value="">Select option...</option>
+                          {candidates.map(c => (
+                            <option key={c.id} value={c.id}>{c.name || c.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                          <label style={{ margin: 0 }}>Rating (1 to 5 Stars)</label>
+                          <span style={{ fontWeight: 600, color: 'var(--google-amber)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Star size={14} fill="currentColor" /> {rating} / 5
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min="1"
+                          max="5"
+                          value={rating}
+                          onChange={e => setRating(e.target.value)}
+                          style={{ width: '100%', accentColor: 'var(--google-blue)' }}
+                        />
+                      </div>
+                    </>
+                  )}
 
                   <button type="submit" className="btn btn-primary" disabled={submitting} style={{ marginTop: '4px' }}>
                     {submitting ? 'Encrypting & Depositing...' : 'Deposit Anonymous Ballot'}

@@ -2,28 +2,36 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Shield, FileText, Download, Check, X, Search } from 'lucide-react';
+import { Modal } from './Modal';
+import { Shield, FileText, Download, Check, X, Search, Plus } from 'lucide-react';
 
 export function SettingsView() {
-  const { isHost } = useAuth();
+  const { currentUser, isHost } = useAuth();
   const toast = useToast();
   const [tickets, setTickets] = useState([]);
   const [auditEvents, setAuditEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchAudit, setSearchAudit] = useState('');
+  const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+  const [ticketTitle, setTicketTitle] = useState('');
+  const [ticketScope, setTicketScope] = useState('production_d1_write');
+  const [ticketReason, setTicketReason] = useState('');
+  const [ticketDuration, setTicketDuration] = useState(30);
 
   const loadSettingsData = async () => {
     try {
-      if (isHost) {
+      if (currentUser) {
         try {
           const tRes = await api.getTickets();
           if (tRes && tRes.tickets) setTickets(tRes.tickets);
         } catch (_) { }
       }
-      try {
-        const aRes = await api.getAuditEvents();
-        if (aRes && aRes.events) setAuditEvents(aRes.events);
-      } catch (_) { }
+      if (isHost) {
+        try {
+          const aRes = await api.getAuditEvents();
+          if (aRes && aRes.events) setAuditEvents(aRes.events);
+        } catch (_) { }
+      }
     } catch (e) {
       console.error('Failed to load settings data:', e);
     } finally {
@@ -33,7 +41,27 @@ export function SettingsView() {
 
   useEffect(() => {
     loadSettingsData();
-  }, [isHost]);
+  }, [currentUser?.id, isHost]);
+
+  const handleRaiseTicket = async (e) => {
+    e.preventDefault();
+    if (!ticketTitle.trim() || !ticketReason.trim() || !ticketScope.trim()) return;
+    try {
+      await api.createTicket({
+        title: ticketTitle.trim(),
+        scope: ticketScope.trim(),
+        reason: ticketReason.trim(),
+        duration_minutes: parseInt(ticketDuration, 10) || 30
+      });
+      setIsTicketModalOpen(false);
+      setTicketTitle('');
+      setTicketReason('');
+      toast.success('Access ticket raised for 2-Man Rule approval');
+      await loadSettingsData();
+    } catch (err) {
+      toast.error(`Failed to raise ticket: ${err.message}`);
+    }
+  };
 
   const handleSignOffTicket = async (ticketId) => {
     try {
@@ -52,6 +80,19 @@ export function SettingsView() {
       await loadSettingsData();
     } catch (err) {
       toast.error(`Denial failed: ${err.message}`);
+    }
+  };
+
+  const handleVerifyChain = async () => {
+    try {
+      const res = await api.verifyAuditChain();
+      if (res?.valid) {
+        toast.success(`Audit chain verified (${res.totalChecked} entries intact)`);
+      } else {
+        toast.error(`Audit chain broken at entry #${res?.brokenAtId}`);
+      }
+    } catch (err) {
+      toast.error(`Verification failed: ${err.message}`);
     }
   };
 
@@ -92,11 +133,18 @@ export function SettingsView() {
           <p>Access approvals, system audit events, and data snapshots</p>
         </div>
 
-        {isHost && (
-          <button className="btn btn-secondary" onClick={handleExportBackup}>
-            <Download size={15} /> Export Snapshot
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {currentUser && (
+            <button className="btn btn-primary" onClick={() => setIsTicketModalOpen(true)}>
+              <Plus size={15} /> Raise Access Ticket
+            </button>
+          )}
+          {isHost && (
+            <button className="btn btn-secondary" onClick={handleExportBackup}>
+              <Download size={15} /> Export Snapshot
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -104,7 +152,7 @@ export function SettingsView() {
       ) : (
         <>
           {/* 2-Man Rule Access Tickets */}
-          {isHost && (
+          {currentUser ? (
             <div className="card">
               <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Shield size={16} style={{ color: 'var(--google-amber)' }} /> 2-Man Rule Governance Tickets
@@ -116,20 +164,26 @@ export function SettingsView() {
                     <div>
                       <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{ticket.title}</div>
                       <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                        Scope: {ticket.scope} • Requester: @{ticket.requester_name || ticket.requester_id} • Status: {ticket.status}
+                        Scope: {ticket.scope} • Requester: @{ticket.requester_handle || ticket.requester_name || ticket.requester_id} • Status: {ticket.status}
                       </div>
                       {ticket.reason && <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: '4px' }}>"{ticket.reason}"</div>}
                     </div>
 
                     {ticket.status === 'PENDING_APPROVAL' && (
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button className="btn btn-primary" style={{ padding: '4px 10px', fontSize: '0.76rem' }} onClick={() => handleSignOffTicket(ticket.id)}>
-                          <Check size={12} /> Sign Off
-                        </button>
-                        <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.76rem', color: 'var(--google-red)' }} onClick={() => handleDenyTicket(ticket.id)}>
-                          <X size={12} /> Deny
-                        </button>
-                      </div>
+                      ticket.requester_id === currentUser.id ? (
+                        <span style={{ fontSize: '0.74rem', color: 'var(--google-amber)', fontWeight: 500 }}>
+                          Awaiting peer sign-off
+                        </span>
+                      ) : (
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button className="btn btn-primary" style={{ padding: '4px 10px', fontSize: '0.76rem' }} onClick={() => handleSignOffTicket(ticket.id)}>
+                            <Check size={12} /> Sign Off
+                          </button>
+                          <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.76rem', color: 'var(--google-red)' }} onClick={() => handleDenyTicket(ticket.id)}>
+                            <X size={12} /> Deny
+                          </button>
+                        </div>
+                      )
                     )}
                   </div>
                 ))}
@@ -141,16 +195,25 @@ export function SettingsView() {
                 )}
               </div>
             </div>
+          ) : (
+            <div className="card" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
+              Sign in to raise or review 2-Man Rule governance tickets.
+            </div>
           )}
 
-          {/* Tamper-Evident Audit Trail */}
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          {/* Tamper-Evident Audit Trail (Host Only) */}
+          {isHost && (
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
               <h3 style={{ fontSize: '1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <FileText size={16} style={{ color: 'var(--google-blue)' }} /> Tamper-Evident Audit Events
               </h3>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-surface-elevated)', padding: '6px 12px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--border-default)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button className="btn btn-secondary" style={{ padding: '5px 10px', fontSize: '0.76rem' }} onClick={handleVerifyChain}>
+                  Verify Hash Chain
+                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-surface-elevated)', padding: '6px 12px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--border-default)' }}>
                 <Search size={14} style={{ color: 'var(--text-muted)' }} />
                 <input
                   type="text"
@@ -159,6 +222,7 @@ export function SettingsView() {
                   onChange={e => setSearchAudit(e.target.value)}
                   style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.82rem', width: '180px' }}
                 />
+                </div>
               </div>
             </div>
 
@@ -201,9 +265,69 @@ export function SettingsView() {
                 )}
               </tbody>
             </table>
-          </div>
+            </div>
+          )}
         </>
       )}
+
+      <Modal
+        isOpen={isTicketModalOpen}
+        onClose={() => setIsTicketModalOpen(false)}
+        title="Raise 2-Man Rule Access Ticket"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setIsTicketModalOpen(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleRaiseTicket}>Submit Request</button>
+          </>
+        }
+      >
+        <form onSubmit={handleRaiseTicket} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div className="form-group">
+            <label>Request Title *</label>
+            <input
+              className="form-input"
+              value={ticketTitle}
+              onChange={e => setTicketTitle(e.target.value)}
+              placeholder="e.g. Temporary Production D1 Migration Access"
+              required
+            />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+            <div className="form-group">
+              <label>Privilege Scope *</label>
+              <input
+                className="form-input"
+                value={ticketScope}
+                onChange={e => setTicketScope(e.target.value)}
+                placeholder="e.g. production_d1_write"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Duration (min)</label>
+              <input
+                type="number"
+                min={5}
+                max={240}
+                className="form-input"
+                value={ticketDuration}
+                onChange={e => setTicketDuration(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="form-group">
+            <label>Justification / Reason *</label>
+            <textarea
+              className="form-textarea"
+              rows={3}
+              value={ticketReason}
+              onChange={e => setTicketReason(e.target.value)}
+              placeholder="Explain why temporary elevated access is needed..."
+              required
+            />
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

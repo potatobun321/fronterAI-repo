@@ -8,6 +8,32 @@ export async function handleMeetingRoutes(req, res, pathname, method) {
     return sendJson(res, 200, { slots });
   }
 
+  if (pathname.startsWith('/api/meetings/join-slot/') && method === 'GET') {
+    const currentUser = getSessionUser(req);
+    if (!currentUser) {
+      res.writeHead(302, { Location: '/?auth=login_required' });
+      return res.end();
+    }
+
+    const slotId = parseInt(pathname.split('/').pop(), 10);
+    const slot = db.prepare('SELECT * FROM meeting_slots WHERE id = ?').get(slotId);
+    if (!slot || !slot.raw_url) {
+      return sendJson(res, 404, { error: 'Meeting bridge slot not found.' });
+    }
+
+    db.prepare('UPDATE meeting_slots SET last_used_at = ? WHERE id = ?').run(new Date().toISOString(), slot.id);
+    logAudit(
+      currentUser.handle,
+      'MEETING_JOINED',
+      `slot_${slot.id}`,
+      `Member ${currentUser.name} (@${currentUser.handle}) joined bridge ${slot.slot_name} (${slot.slot_code}).`,
+      'SUCCESS'
+    );
+
+    res.writeHead(302, { Location: slot.raw_url });
+    return res.end();
+  }
+
   if (pathname.startsWith('/api/meetings/join/') && method === 'GET') {
     const currentUser = getSessionUser(req);
     if (!currentUser) {

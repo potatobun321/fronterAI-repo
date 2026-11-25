@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { DB_PATH, HOST_EMAIL, HOST_GITHUB_ID, HOST_HANDLE, HOST_NAME } from './config.js';
 
@@ -216,6 +217,8 @@ export function initDatabase() {
   try { db.exec('ALTER TABLE members ADD COLUMN google_sub TEXT'); } catch (e) {}
   try { db.exec('ALTER TABLE members ADD COLUMN email TEXT'); } catch (e) {}
   try { db.exec('ALTER TABLE voting_sessions ADD COLUMN target_member_id INTEGER'); } catch (e) {}
+  try { db.exec('ALTER TABLE audit_events ADD COLUMN prev_hash TEXT'); } catch (e) {}
+  try { db.exec('ALTER TABLE audit_events ADD COLUMN entry_hash TEXT'); } catch (e) {}
 
   // Migrate members table if github_numeric_id is still strictly NOT NULL
   try {
@@ -388,14 +391,43 @@ export function seedData() {
   );
 }
 
-// Audit logger helper
+// Audit logger helper with SHA-256 hash chaining
+export function computeAuditHash(prevHash, timestamp, actorHandle, action, target, details, status) {
+  const payload = `${prevHash || 'GENESIS'}|${timestamp}|${actorHandle}|${action}|${target}|${details || ''}|${status}`;
+  return crypto.createHash('sha256').update(payload).digest('hex');
+}
+
 export function logAudit(actorHandle, action, target, details, status = 'SUCCESS') {
   try {
+    const timestamp = new Date().toISOString();
+    const prev = db.prepare('SELECT entry_hash FROM audit_events ORDER BY id DESC LIMIT 1').get();
+    const prevHash = prev?.entry_hash || 'GENESIS';
+    const entryHash = computeAuditHash(prevHash, timestamp, actorHandle, action, target, details, status);
     db.prepare(`
-      INSERT INTO audit_events (timestamp, actor_handle, action, target, details, status)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(new Date().toISOString(), actorHandle, action, target, details, status);
+      INSERT INTO audit_events (timestamp, actor_handle, action, target, details, status, prev_hash, entry_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(timestamp, actorHandle, action, target, details, status, prevHash, entryHash);
   } catch (err) {
     console.error('Audit log failure:', err);
   }
+}
+
+export function verifyAuditChain() {
+  const rows = db.prepare('SELECT * FROM audit_events ORDER BY id ASC').all();
+  let expectedPrev = 'GENESIS';
+  for (const row of rows) {
+    if (!row.entry_hash) {
+      expectedPrev = row.entry_hash || 'GENESIS';
+      continue;
+    }
+    if (row.prev_hash !== expectedPrev) {
+      return { valid: false, brokenAtId: row.id, totalChecked: rows.length };
+    }
+    const recomputed = computeAuditHash(row.prev_hash, row.timestamp, row.actor_handle, row.action, row.target, row.details, row.status);
+    if (recomputed !== row.entry_hash) {
+      return { valid: false, brokenAtId: row.id, totalChecked: rows.length };
+    }
+    expectedPrev = row.entry_hash;
+  }
+  return { valid: true, totalChecked: rows.length };
 }

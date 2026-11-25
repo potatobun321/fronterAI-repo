@@ -72,6 +72,17 @@ export async function handleTaskRoutes(req, res, pathname, method) {
     const current = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId);
     if (!current) return sendJson(res, 404, { error: 'Task not found' });
 
+    if (!currentUser.is_host && current.assignee_id !== currentUser.id) {
+      logAudit(
+        currentUser.handle,
+        'TASK_UPDATE_DENIED',
+        `task_${taskId}`,
+        'Member attempted to update a task not assigned to them.',
+        'DENIED'
+      );
+      return sendJson(res, 403, { error: 'Permission Denied: You can only update tasks assigned to you.' });
+    }
+
     // OCC: Optimistic Concurrency Control Check
     if (typeof version === 'number' && current.version !== version) {
       logAudit(

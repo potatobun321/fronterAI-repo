@@ -1,5 +1,15 @@
-import http from 'node:http';
-import { db, initDatabase, seedData } from './db.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+const tempDbPath = path.join(os.tmpdir(), `frontier_test_${Date.now()}.db`);
+const tempBackupDir = path.join(os.tmpdir(), `frontier_test_backups_${Date.now()}`);
+process.env.DB_PATH = tempDbPath;
+process.env.BACKUP_DIR = tempBackupDir;
+process.env.FRONTIER_NO_AUTO_LISTEN = '1';
+
+const { default: server } = await import('./server.js');
+const { db, initDatabase, seedData } = await import('./db.js');
 
 let sessionCookie = '';
 async function testFetch(url, options = {}) {
@@ -21,8 +31,10 @@ async function testFetch(url, options = {}) {
 }
 
 async function runTests() {
-  const base = 'http://127.0.0.1:3030';
-  console.log('🧪 Starting Frontier AI Upgraded Architecture Verification...\n');
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  const base = `http://127.0.0.1:${port}`;
+  console.log(`🧪 Starting Frontier AI Upgraded Architecture Verification (ephemeral port ${port})...\n`);
 
   try {
     initDatabase();
@@ -546,11 +558,18 @@ async function runTests() {
     console.log(`[PASS] 18b. Active Operational Agency: Oracle prepared actionable SEND_TASKLET action envelope without passive deflection.\n`);
 
     console.log('🎉 ALL 35 ARCHITECTURE, SECURITY, GUARDRAIL, ACTION, TRANSFER & TASKLET CHECKS PASSED PERFECTLY!');
-    process.exit(0);
+    process.exitCode = 0;
 
   } catch (err) {
     console.error('❌ Test failed:', err);
-    process.exit(1);
+    process.exitCode = 1;
+  } finally {
+    server.close();
+    try { db.close(); } catch (_) {}
+    for (const suffix of ['', '-wal', '-shm']) {
+      try { fs.unlinkSync(tempDbPath + suffix); } catch (_) {}
+    }
+    try { fs.rmSync(tempBackupDir, { recursive: true, force: true }); } catch (_) {}
   }
 }
 
