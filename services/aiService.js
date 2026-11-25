@@ -379,6 +379,54 @@ ${JSON.stringify(actionPayload, null, 2)}
 \`\`\``;
   }
 
+  // 2b. Action: Broadcast Live Meeting Ping (Host Only)
+  if (/go live|ping meeting|start live call/.test(text)) {
+    if (!currentUser.is_host) {
+      return '❌ **Permission Denied:** Only the Team Host / Lead can broadcast live meeting pings.';
+    }
+    const actionPayload = { action: 'PING_MEETING' };
+    return `Ready to broadcast a live meeting ping for the latest scheduled sync:\n\n\`\`\`action\n${JSON.stringify(actionPayload, null, 2)}\n\`\`\``;
+  }
+
+  // 2c. Action: Close Voting Session (Host Only)
+  if (/close vot|end vot|close review|reveal tally/.test(text)) {
+    if (!currentUser.is_host) {
+      return '❌ **Permission Denied:** Only the Team Host / Lead can close voting sessions.';
+    }
+    const actionPayload = { action: 'CLOSE_VOTING' };
+    return `Ready to close the active voting session and publish the aggregate tallies:\n\n\`\`\`action\n${JSON.stringify(actionPayload, null, 2)}\n\`\`\``;
+  }
+
+  // 2d. Action: Raise 2-Man Access Ticket (All Members)
+  if (/raise ticket|access ticket|request access/.test(text)) {
+    const cleaned = userMessage.replace(/^(raise ticket|access ticket|request access)[:\s]*/i, '').trim();
+    const actionPayload = {
+      action: 'RAISE_TICKET',
+      title: cleaned || 'Temporary Elevated Access Request',
+      scope: 'production_d1_write',
+      reason: cleaned || 'Requested via Frontier Oracle',
+      duration_minutes: 30
+    };
+    return `I have prepared a 2-Man Rule access ticket for peer sign-off:\n\n\`\`\`action\n${JSON.stringify(actionPayload, null, 2)}\n\`\`\``;
+  }
+
+  // 2e. Action: Send Peer Feedback (All Members)
+  if (/feedback|kudos/.test(text)) {
+    const members = db.prepare('SELECT name, handle FROM members WHERE is_allowed = 1').all();
+    let receiver = members.find(m => m.handle !== currentUser.handle && (text.includes(m.name.toLowerCase()) || text.includes(m.handle.toLowerCase())));
+    if (!receiver) receiver = members.find(m => m.handle !== currentUser.handle) || currentUser;
+    const isAnon = /anon|anonymous/.test(text);
+    const actionPayload = {
+      action: 'SEND_FEEDBACK',
+      receiver: receiver.handle || receiver.name,
+      title: isAnon ? 'Anonymous Peer Feedback' : 'Peer Kudos & Feedback',
+      description: userMessage.trim(),
+      category: 'KUDOS',
+      is_anonymous: isAnon
+    };
+    return `I have prepared ${isAnon ? 'anonymous ' : ''}feedback for **@${actionPayload.receiver}**:\n\n\`\`\`action\n${JSON.stringify(actionPayload, null, 2)}\n\`\`\``;
+  }
+
   // 3. Action: Update Task Status
   if (/update task|mark task|set task/.test(text)) {
     const idMatch = text.match(/task\s*#?(\d+)/);

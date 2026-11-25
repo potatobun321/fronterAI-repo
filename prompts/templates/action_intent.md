@@ -64,11 +64,47 @@ OR
 }
 ```
 
-### 6. Start Anonymous Voting Session (Host Only)
+### 6. Start or Close Anonymous Voting Session (Host Only)
 ```action
 {
   "action": "START_VOTING",
   "title": "<Voting Round Title>",
   "description": "<Topic or criteria>"
+}
+```
+OR
+```action
+{
+  "action": "CLOSE_VOTING"
+}
+```
+
+### 7. Send Peer Feedback (All Members, Optional Anonymous)
+```action
+{
+  "action": "SEND_FEEDBACK",
+  "receiver": "<Member Name or Handle>",
+  "title": "<Feedback Summary>",
+  "description": "<Constructive feedback or kudos>",
+  "category": "KUDOS | REVIEW | SUGGESTION",
+  "is_anonymous": true
+}
+```
+
+### 8. Raise 2-Man Rule Access Ticket (All Members)
+```action
+{
+  "action": "RAISE_TICKET",
+  "title": "<Request Title>",
+  "scope": "<Privilege Scope>",
+  "reason": "<Justification>",
+  "duration_minutes": 30
+}
+```
+
+### 9. Broadcast Live Meeting Ping (Host Only)
+```action
+{
+  "action": "PING_MEETING"
 }
 ```

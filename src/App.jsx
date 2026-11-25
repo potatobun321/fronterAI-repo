@@ -12,12 +12,24 @@ const VotingView = lazy(() => import('./components/VotingView').then(m => ({ def
 const PeersView = lazy(() => import('./components/PeersView').then(m => ({ default: m.PeersView })));
 const SettingsView = lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
 const OraclePanel = lazy(() => import('./components/OraclePanel').then(m => ({ default: m.OraclePanel })));
+const AgenticWorkspace = lazy(() => import('./components/AgenticWorkspace').then(m => ({ default: m.AgenticWorkspace })));
 
 function AppContent() {
   const { currentUser, authNotice, clearAuthNotice } = useAuth();
   const toast = useToast();
   const [currentView, setCurrentView] = useState('tasks');
+  const [uiMode, setUiMode] = useState(() => localStorage.getItem('frontier_ui_mode') || 'agentic');
   const [isOracleOpen, setIsOracleOpen] = useState(false);
+
+  const handleChangeUiMode = (mode) => {
+    setUiMode(mode);
+    localStorage.setItem('frontier_ui_mode', mode);
+  };
+
+  const handleOpenClassicView = (viewId) => {
+    setCurrentView(viewId);
+    handleChangeUiMode('classic');
+  };
   const [taskCount, setTaskCount] = useState(0);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     return localStorage.getItem('frontier_sidebar_collapsed') === 'true';
@@ -59,39 +71,51 @@ function AppContent() {
         isOracleOpen={isOracleOpen}
         onToggleSidebar={toggleSidebar}
         isSidebarCollapsed={isSidebarCollapsed}
+        uiMode={uiMode}
+        onChangeUiMode={handleChangeUiMode}
       />
 
-      <div className="main-body">
-        <Sidebar
+      {uiMode === 'agentic' ? (
+        <div className="main-body">
+          <Suspense fallback={<div style={{ padding: '40px', color: 'var(--text-muted)' }}>Loading Agentic Workspace...</div>}>
+            <AgenticWorkspace onOpenClassicView={handleOpenClassicView} />
+          </Suspense>
+        </div>
+      ) : (
+        <div className="main-body">
+          <Sidebar
+            currentView={currentView}
+            onChangeView={setCurrentView}
+            taskCount={taskCount}
+            isCollapsed={isSidebarCollapsed}
+          />
+
+          <main className="main-content-canvas" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+            <Suspense fallback={<div style={{ padding: '40px', color: 'var(--text-muted)' }}>Loading workspace...</div>}>
+              {currentView === 'tasks' && <TasksView />}
+              {currentView === 'callroom' && <CallRoomView />}
+              {currentView === 'voting' && <VotingView />}
+              {currentView === 'peers' && <PeersView />}
+              {currentView === 'settings' && <SettingsView />}
+            </Suspense>
+          </main>
+
+          <Suspense fallback={null}>
+            <OraclePanel
+              isOpen={isOracleOpen}
+              onClose={() => setIsOracleOpen(false)}
+            />
+          </Suspense>
+        </div>
+      )}
+
+      {uiMode === 'classic' && (
+        <MobileBottomNav
           currentView={currentView}
           onChangeView={setCurrentView}
           taskCount={taskCount}
-          isCollapsed={isSidebarCollapsed}
         />
-
-        <main className="main-content-canvas" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          <Suspense fallback={<div style={{ padding: '40px', color: 'var(--text-muted)' }}>Loading workspace...</div>}>
-            {currentView === 'tasks' && <TasksView />}
-            {currentView === 'callroom' && <CallRoomView />}
-            {currentView === 'voting' && <VotingView />}
-            {currentView === 'peers' && <PeersView />}
-            {currentView === 'settings' && <SettingsView />}
-          </Suspense>
-        </main>
-
-        <Suspense fallback={null}>
-          <OraclePanel
-            isOpen={isOracleOpen}
-            onClose={() => setIsOracleOpen(false)}
-          />
-        </Suspense>
-      </div>
-
-      <MobileBottomNav
-        currentView={currentView}
-        onChangeView={setCurrentView}
-        taskCount={taskCount}
-      />
+      )}
     </div>
   );
 }

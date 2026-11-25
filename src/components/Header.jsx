@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Sun, Moon, Sparkles, User, LogOut, ShieldCheck, ChevronDown, Menu } from 'lucide-react';
 
-export function Header({ onToggleOracle, isOracleOpen, onToggleSidebar, isSidebarCollapsed }) {
+export function Header({ onToggleOracle, isOracleOpen, onToggleSidebar, isSidebarCollapsed, uiMode, onChangeUiMode }) {
   const { currentUser, isHost, members, theme, toggleTheme, loginAs, logout } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showDevMenu, setShowDevMenu] = useState(false);
@@ -33,15 +33,17 @@ export function Header({ onToggleOracle, isOracleOpen, onToggleSidebar, isSideba
   return (
     <header className="app-header">
       <div className="brand-section">
-        <button
-          className="btn-icon sidebar-toggle-btn"
-          onClick={onToggleSidebar}
-          title={isSidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
-          aria-label="Toggle navigation menu"
-          style={{ marginRight: '6px' }}
-        >
-          <Menu size={18} />
-        </button>
+        {uiMode === 'classic' && (
+          <button
+            className="btn-icon sidebar-toggle-btn"
+            onClick={onToggleSidebar}
+            title={isSidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
+            aria-label="Toggle navigation menu"
+            style={{ marginRight: '6px' }}
+          >
+            <Menu size={18} />
+          </button>
+        )}
 
         <div className="brand-title">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--google-blue)' }}>
@@ -54,6 +56,40 @@ export function Header({ onToggleOracle, isOracleOpen, onToggleSidebar, isSideba
       </div>
 
       <div className="header-actions">
+        {/* Agentic / Classic Mode Toggle */}
+        <div style={{ display: 'flex', background: 'var(--bg-surface-elevated)', padding: '3px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--border-subtle)' }}>
+          <button
+            onClick={() => onChangeUiMode('agentic')}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-pill)',
+              border: 'none',
+              fontSize: '0.74rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              background: uiMode === 'agentic' ? 'var(--google-blue-container)' : 'transparent',
+              color: uiMode === 'agentic' ? 'var(--google-blue-text)' : 'var(--text-secondary)'
+            }}
+          >
+            Agentic
+          </button>
+          <button
+            onClick={() => onChangeUiMode('classic')}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-pill)',
+              border: 'none',
+              fontSize: '0.74rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              background: uiMode === 'classic' ? 'var(--google-blue-container)' : 'transparent',
+              color: uiMode === 'classic' ? 'var(--google-blue-text)' : 'var(--text-secondary)'
+            }}
+          >
+            Classic
+          </button>
+        </div>
+
         {/* Theme Toggle */}
         <button
           className="btn-icon"
@@ -231,15 +267,17 @@ export function Header({ onToggleOracle, isOracleOpen, onToggleSidebar, isSideba
         )}
         </div>
 
-        {/* Oracle AI Assistant Pill */}
-        <button
-          className={`btn ${isOracleOpen ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={onToggleOracle}
-          style={{ padding: '7px 14px' }}
-        >
-          <Sparkles size={16} style={{ color: isOracleOpen ? 'inherit' : 'var(--google-blue)' }} />
-          <span>Oracle AI</span>
-        </button>
+        {/* Oracle AI Assistant Pill (Classic Mode) */}
+        {uiMode === 'classic' && (
+          <button
+            className={`btn ${isOracleOpen ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={onToggleOracle}
+            style={{ padding: '7px 14px' }}
+          >
+            <Sparkles size={16} style={{ color: isOracleOpen ? 'inherit' : 'var(--google-blue)' }} />
+            <span>Oracle AI</span>
+          </button>
+        )}
       </div>
     </header>
   );

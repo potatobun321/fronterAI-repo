@@ -2020,6 +2020,97 @@ When performing or preparing an operational action, output a concise friendly su
         });
       }
 
+      // SEND_FEEDBACK (All Members, Optional Anonymous)
+      if (actionType === 'SEND_FEEDBACK') {
+        let receiverId = parseInt(payload.receiver_id, 10);
+        if (!receiverId && payload.receiver) {
+          const raw = String(payload.receiver).replace(/^@/, '').toLowerCase().trim();
+          const target = await env.DB.prepare('SELECT id FROM members WHERE LOWER(handle) = ? OR LOWER(name) LIKE ? LIMIT 1').bind(raw, `%${raw}%`).first();
+          if (target) receiverId = target.id;
+        }
+        if (!receiverId) return jsonResponse({ error: 'Valid receiver member is required.' }, 400);
+        const receiver = await env.DB.prepare('SELECT id, name, handle FROM members WHERE id = ?').bind(receiverId).first();
+        if (!receiver) return jsonResponse({ error: 'Receiver member not found.' }, 404);
+
+        const title = (payload.title || 'Peer Feedback').trim();
+        const description = (payload.description || '').trim();
+        const category = (payload.category || 'KUDOS').toUpperCase();
+        const isAnon = payload.is_anonymous ? 1 : 0;
+
+        const ins = await env.DB.prepare(`
+          INSERT INTO tasklets (sender_id, receiver_id, title, description, status, type, category, is_anonymous, created_at, updated_at)
+          VALUES (?, ?, ?, ?, 'PENDING', 'FEEDBACK', ?, ?, datetime('now'), datetime('now'))
+        `).bind(member.id, receiverId, title, description, category, isAnon).run();
+
+        const newId = ins.meta?.last_row_id;
+        await logAudit(env, isAnon ? 'ANONYMOUS' : (member.handle || member.name), 'AI_ACTION_SEND_FEEDBACK', `tasklet_${newId}`, `Sent ${isAnon ? 'anonymous ' : ''}feedback to ${receiver.name}`);
+        return jsonResponse({
+          success: true,
+          action: 'SEND_FEEDBACK',
+          message: `${isAnon ? 'Anonymous feedback' : 'Feedback'} delivered to ${receiver.name}.`,
+          taskletId: newId
+        });
+      }
+
+      // CLOSE_VOTING (Host Only)
+      if (actionType === 'CLOSE_VOTING') {
+        if (!isHostMember(member, env)) return jsonResponse({ error: 'Forbidden: Only Host can close voting sessions.' }, 403);
+        const active = payload.session_id
+          ? await env.DB.prepare('SELECT id, title FROM voting_sessions WHERE id = ?').bind(parseInt(payload.session_id, 10)).first()
+          : await env.DB.prepare("SELECT id, title FROM voting_sessions WHERE status = 'ACTIVE' ORDER BY id DESC LIMIT 1").first();
+        if (!active) return jsonResponse({ error: 'No active voting session found.' }, 404);
+
+        await env.DB.prepare("UPDATE voting_sessions SET status = 'CLOSED', closed_at = datetime('now') WHERE id = ?").bind(active.id).run();
+        await logAudit(env, member.handle || member.name, 'AI_ACTION_CLOSE_VOTING', `voting_session_${active.id}`, `Closed voting session #${active.id}`);
+        return jsonResponse({
+          success: true,
+          action: 'CLOSE_VOTING',
+          message: `Voting session #${active.id} ("${active.title}") closed and tallies revealed.`,
+          sessionId: active.id
+        });
+      }
+
+      // RAISE_TICKET (All Members — 2-Man Rule)
+      if (actionType === 'RAISE_TICKET') {
+        const title = (payload.title || '').trim();
+        const reason = (payload.reason || 'Requested via Frontier Oracle').trim();
+        const scope = (payload.scope || 'workspace_elevated').trim();
+        const duration = Math.max(5, Math.min(240, parseInt(payload.duration_minutes || 30, 10)));
+        if (!title) return jsonResponse({ error: 'Ticket title is required.' }, 400);
+
+        const ins = await env.DB.prepare(`
+          INSERT INTO access_tickets (requester_id, title, reason, scope, duration_minutes, status, created_at)
+          VALUES (?, ?, ?, ?, ?, 'PENDING_APPROVAL', datetime('now'))
+        `).bind(member.id, title, reason, scope, duration).run();
+
+        const newId = ins.meta?.last_row_id;
+        await logAudit(env, member.handle || member.name, 'AI_ACTION_RAISE_TICKET', `ticket_${newId}`, `Raised 2-Man ticket "${title}" for scope "${scope}"`, 'PENDING');
+        return jsonResponse({
+          success: true,
+          action: 'RAISE_TICKET',
+          message: `Access ticket #${newId} ("${title}") raised for peer sign-off.`,
+          ticketId: newId
+        });
+      }
+
+      // PING_MEETING (Host Only)
+      if (actionType === 'PING_MEETING') {
+        if (!isHostMember(member, env)) return jsonResponse({ error: 'Forbidden: Only Host can broadcast live meeting pings.' }, 403);
+        const ev = payload.event_id
+          ? await env.DB.prepare('SELECT id, title FROM calendar_events WHERE id = ?').bind(parseInt(payload.event_id, 10)).first()
+          : await env.DB.prepare("SELECT id, title FROM calendar_events WHERE event_type IN ('MEETING', 'RETRO') ORDER BY id DESC LIMIT 1").first();
+        if (!ev) return jsonResponse({ error: 'No meeting event found to ping.' }, 404);
+
+        await env.DB.prepare('UPDATE calendar_events SET is_live = 1 WHERE id = ?').bind(ev.id).run();
+        await logAudit(env, member.handle || member.name, 'AI_ACTION_PING_MEETING', `cal_${ev.id}`, `Broadcasted live ping for "${ev.title}"`);
+        return jsonResponse({
+          success: true,
+          action: 'PING_MEETING',
+          message: `Live meeting ping broadcasted for "${ev.title}".`,
+          eventId: ev.id
+        });
+      }
+
       return jsonResponse({ error: `Unrecognized action type: ${actionType}` }, 400);
     }
 
