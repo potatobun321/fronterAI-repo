@@ -413,6 +413,100 @@ export async function handleAiRoutes(req, res, pathname, method) {
         });
       }
 
+      // --- ACTION 10: SEND_FEEDBACK (All Members, Optional Anonymous) ---
+      if (actionType === 'SEND_FEEDBACK') {
+        let receiverId = parseInt(payload.receiver_id, 10);
+        if (!receiverId && payload.receiver) {
+          const raw = String(payload.receiver).replace(/^@/, '').toLowerCase().trim();
+          const target = db.prepare('SELECT id FROM members WHERE LOWER(handle) = ? OR LOWER(name) LIKE ? LIMIT 1')
+            .get(raw, `%${raw}%`);
+          if (target) receiverId = target.id;
+        }
+        if (!receiverId) return sendJson(res, 400, { error: 'Valid receiver member is required.' });
+        const receiver = db.prepare('SELECT id, name, handle FROM members WHERE id = ?').get(receiverId);
+        if (!receiver) return sendJson(res, 404, { error: 'Receiver member not found.' });
+
+        const title = (payload.title || 'Peer Feedback').trim();
+        const description = (payload.description || '').trim();
+        const category = (payload.category || 'KUDOS').toUpperCase();
+        const isAnon = payload.is_anonymous ? 1 : 0;
+
+        const result = db.prepare(`
+          INSERT INTO tasklets (sender_id, receiver_id, title, description, status, type, category, is_anonymous, created_at, updated_at)
+          VALUES (?, ?, ?, ?, 'PENDING', 'FEEDBACK', ?, ?, datetime('now'), datetime('now'))
+        `).run(currentUser.id, receiverId, title, description, category, isAnon);
+
+        logAudit(isAnon ? 'anonymous' : currentUser.handle, 'AI_ACTION_SEND_FEEDBACK', `tasklet_${result.lastInsertRowid}`, `Sent ${isAnon ? 'anonymous ' : ''}feedback to ${receiver.name}`, 'SUCCESS');
+        return sendJson(res, 200, {
+          success: true,
+          action: 'SEND_FEEDBACK',
+          message: `${isAnon ? 'Anonymous feedback' : 'Feedback'} delivered to ${receiver.name}.`,
+          taskletId: result.lastInsertRowid
+        });
+      }
+
+      // --- ACTION 11: CLOSE_VOTING (Host Only) ---
+      if (actionType === 'CLOSE_VOTING') {
+        if (!currentUser.is_host) {
+          return sendJson(res, 403, { error: 'Forbidden: Only the Team Host can close voting sessions.' });
+        }
+        const active = payload.session_id
+          ? db.prepare('SELECT id, title FROM voting_sessions WHERE id = ?').get(parseInt(payload.session_id, 10))
+          : db.prepare("SELECT id, title FROM voting_sessions WHERE status = 'ACTIVE' ORDER BY id DESC LIMIT 1").get();
+        if (!active) return sendJson(res, 404, { error: 'No active voting session found.' });
+
+        db.prepare("UPDATE voting_sessions SET status = 'CLOSED', closed_at = datetime('now') WHERE id = ?").run(active.id);
+        logAudit(currentUser.handle, 'AI_ACTION_CLOSE_VOTING', `voting_session_${active.id}`, `Closed voting session #${active.id}`, 'SUCCESS');
+        return sendJson(res, 200, {
+          success: true,
+          action: 'CLOSE_VOTING',
+          message: `Voting session #${active.id} ("${active.title}") closed and tallies revealed.`,
+          sessionId: active.id
+        });
+      }
+
+      // --- ACTION 12: RAISE_TICKET (All Members — 2-Man Rule) ---
+      if (actionType === 'RAISE_TICKET') {
+        const title = (payload.title || '').trim();
+        const reason = (payload.reason || 'Requested via Frontier Oracle').trim();
+        const scope = (payload.scope || 'workspace_elevated').trim();
+        const duration = Math.max(5, Math.min(240, parseInt(payload.duration_minutes || 30, 10)));
+        if (!title) return sendJson(res, 400, { error: 'Ticket title is required.' });
+
+        const result = db.prepare(`
+          INSERT INTO access_tickets (requester_id, title, reason, scope, duration_minutes, status, created_at)
+          VALUES (?, ?, ?, ?, ?, 'PENDING_APPROVAL', datetime('now'))
+        `).run(currentUser.id, title, reason, scope, duration);
+
+        logAudit(currentUser.handle, 'AI_ACTION_RAISE_TICKET', `ticket_${result.lastInsertRowid}`, `Raised 2-Man ticket "${title}" for scope "${scope}"`, 'PENDING');
+        return sendJson(res, 200, {
+          success: true,
+          action: 'RAISE_TICKET',
+          message: `Access ticket #${result.lastInsertRowid} ("${title}") raised for peer sign-off.`,
+          ticketId: result.lastInsertRowid
+        });
+      }
+
+      // --- ACTION 13: PING_MEETING (Host Only) ---
+      if (actionType === 'PING_MEETING') {
+        if (!currentUser.is_host) {
+          return sendJson(res, 403, { error: 'Forbidden: Only the Team Host can broadcast live meeting pings.' });
+        }
+        const ev = payload.event_id
+          ? db.prepare('SELECT id, title FROM calendar_events WHERE id = ?').get(parseInt(payload.event_id, 10))
+          : db.prepare("SELECT id, title FROM calendar_events WHERE event_type IN ('MEETING', 'RETRO') ORDER BY id DESC LIMIT 1").get();
+        if (!ev) return sendJson(res, 404, { error: 'No meeting event found to ping.' });
+
+        db.prepare('UPDATE calendar_events SET is_live = 1 WHERE id = ?').run(ev.id);
+        logAudit(currentUser.handle, 'AI_ACTION_PING_MEETING', `cal_${ev.id}`, `Broadcasted live ping for "${ev.title}"`, 'SUCCESS');
+        return sendJson(res, 200, {
+          success: true,
+          action: 'PING_MEETING',
+          message: `Live meeting ping broadcasted for "${ev.title}".`,
+          eventId: ev.id
+        });
+      }
+
       return sendJson(res, 400, { error: `Unrecognized action type: ${actionType}` });
     } catch (err) {
       console.error('Error executing Oracle action:', err);
