@@ -1,4 +1,4 @@
-import { GEMINI_API_KEY, GROQ_API_KEY, AI_PROVIDER } from '../config.js';
+import { GEMINI_API_KEY, GROQ_API_KEY, GROQ_MODEL, AI_PROVIDER } from '../config.js';
 import { db } from '../db.js';
 import { buildSystemPrompt } from './promptLoader.js';
 
@@ -12,6 +12,14 @@ export function buildWorkspaceContext(db, currentUser, userMessage = '') {
 
   // 1. User Identity & Permissions (~20 tokens)
   parts.push(`CURRENT USER: ${currentUser.name} (@${currentUser.handle}) | Role: ${currentUser.role} | Track: ${currentUser.team_track} | Is Host: ${currentUser.is_host ? 'YES' : 'NO'}`);
+
+  // 1b. Long-term Member Memory (from member_memories)
+  try {
+    const memRow = db.prepare('SELECT memory_data FROM member_memories WHERE member_id = ?').get(currentUser.id);
+    if (memRow?.memory_data && memRow.memory_data !== '{}') {
+      parts.push(`USER PROFILE MEMORY: ${memRow.memory_data}`);
+    }
+  } catch (_) {}
 
   // 2. Member Directory (Always compact, ~60 tokens for 8 members)
   const members = db.prepare('SELECT id, name, handle, role, team_track, is_host FROM members WHERE is_allowed = 1 ORDER BY is_host DESC, id ASC').all();
@@ -118,9 +126,9 @@ export async function chatWithAssistant({ userMessage, threadId, currentUser }) 
   const history = db.prepare(`
     SELECT sender_role, content FROM ai_messages
     WHERE thread_id = ?
-    ORDER BY id ASC
+    ORDER BY id DESC
     LIMIT 6
-  `).all(activeThreadId);
+  `).all(activeThreadId).reverse();
 
   // 3. Build dynamic, token-optimized workspace context
   const workspaceContext = buildWorkspaceContext(db, currentUser, userMessage);
@@ -164,6 +172,23 @@ export async function chatWithAssistant({ userMessage, threadId, currentUser }) 
   insertStmt.run(activeThreadId, 'model', replyText);
 
   db.prepare(`UPDATE ai_threads SET updated_at = datetime('now') WHERE id = ?`).run(activeThreadId);
+
+  // 8. Persist lightweight long-term memory note when user states focus/preferences
+  try {
+    const rememberMatch = userMessage.match(/\b(?:remember that|my focus is|i am working on|i'm working on)\s+(.{4,120})/i);
+    if (rememberMatch) {
+      const existingMem = db.prepare('SELECT memory_data FROM member_memories WHERE member_id = ?').get(currentUser.id);
+      let parsed = {};
+      try { parsed = existingMem?.memory_data ? JSON.parse(existingMem.memory_data) : {}; } catch (_) {}
+      parsed.focus_area = rememberMatch[1].trim();
+      parsed.last_updated = new Date().toISOString();
+      db.prepare(`
+        INSERT INTO member_memories (member_id, memory_data, updated_at)
+        VALUES (?, ?, datetime('now'))
+        ON CONFLICT(member_id) DO UPDATE SET memory_data = excluded.memory_data, updated_at = excluded.updated_at
+      `).run(currentUser.id, JSON.stringify(parsed));
+    }
+  } catch (_) {}
 
   return {
     threadId: activeThreadId,
@@ -232,11 +257,13 @@ async function callGroqLlama(systemPrompt, history, userMessage) {
   }
 
   messages.push({ role: 'user', content: userMessage });
-  const modelsToTry = [
-    'qwen/qwen3.8-27b',
-    'llama-3.3-70b-versatile',
-    'llama-3.1-8b-instant'
-  ];
+  const modelsToTry = GROQ_MODEL
+    ? GROQ_MODEL.split(',').map(m => m.trim()).filter(Boolean)
+    : [
+        'qwen/qwen3.8-27b',
+        'llama-3.3-70b-versatile',
+        'llama-3.1-8b-instant'
+      ];
 
   let lastError = null;
   for (const model of modelsToTry) {

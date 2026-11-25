@@ -20,8 +20,12 @@ function verifySignedState(secret, stateToken) {
   if (isNaN(ts)) return false;
   if (Date.now() - ts > 15 * 60 * 1000 || ts > Date.now() + 60 * 1000) return false;
   const expectedSig = crypto.createHmac('sha256', secret).update(`${nonce}.${tsStr}`).digest('hex');
-  return sig === expectedSig;
+  const sigBuf = Buffer.from(sig, 'utf8');
+  const expectedBuf = Buffer.from(expectedSig, 'utf8');
+  return sigBuf.length === expectedBuf.length && crypto.timingSafeEqual(sigBuf, expectedBuf);
 }
+
+const cookieSecurityFlag = isProduction ? '; Secure' : '';
 
 export async function handleAuthRoutes(req, res, pathname, method, urlObj) {
   const cookies = parseCookies(req);
@@ -62,7 +66,7 @@ export async function handleAuthRoutes(req, res, pathname, method, urlObj) {
 
     res.writeHead(302, {
       'Location': googleAuthUrl,
-      'Set-Cookie': `oauth_state=${state}; HttpOnly; Path=/; SameSite=Lax; Max-Age=900`
+      'Set-Cookie': `oauth_state=${state}; HttpOnly; Path=/; SameSite=Lax; Max-Age=900${cookieSecurityFlag}`
     });
     return res.end();
   }
@@ -205,8 +209,8 @@ export async function handleAuthRoutes(req, res, pathname, method, urlObj) {
       res.writeHead(302, {
         'Location': `/?auth=oauth_success&sid=${sessionToken}`,
         'Set-Cookie': [
-          `frontier_session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`,
-          `oauth_state=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`
+          `frontier_session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${cookieSecurityFlag}`,
+          `oauth_state=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${cookieSecurityFlag}`
         ]
       });
       return res.end();

@@ -7,6 +7,7 @@ export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [authNotice, setAuthNotice] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('frontier_theme') || 'dark');
 
   useEffect(() => {
@@ -43,6 +44,50 @@ export function AuthProvider({ children }) {
   };
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sid = params.get('sid');
+    const authParam = params.get('auth');
+    const errorParam = params.get('error');
+    const emailParam = params.get('email');
+
+    if (sid) {
+      localStorage.setItem('frontier_session', sid);
+      params.delete('sid');
+    }
+
+    if (authParam === 'pending_approval') {
+      setAuthNotice({
+        type: 'info',
+        message: `Access request for ${emailParam || 'your account'} is pending Host approval.`
+      });
+      params.delete('auth');
+      params.delete('email');
+    } else if (authParam === 'oauth_success') {
+      setAuthNotice({ type: 'success', message: 'Signed in with Google.' });
+      params.delete('auth');
+    } else if (authParam === 'login_required') {
+      setAuthNotice({ type: 'info', message: 'Please sign in to join the meeting.' });
+      params.delete('auth');
+    } else if (errorParam) {
+      const errorMessages = {
+        oauth_not_configured: 'Google OAuth is not configured on the server.',
+        csrf_state_mismatch: 'Sign-in state expired or mismatched. Please try again.',
+        token_exchange_failed: 'Google token exchange failed. Please try again.',
+        oauth_internal_error: 'Authentication failed due to a server error.'
+      };
+      setAuthNotice({
+        type: 'error',
+        message: errorMessages[errorParam] || `Sign-in error: ${errorParam}`
+      });
+      params.delete('error');
+    }
+
+    if (sid || authParam || errorParam) {
+      const remaining = params.toString();
+      const nextUrl = window.location.pathname + (remaining ? `?${remaining}` : '') + window.location.hash;
+      window.history.replaceState({}, '', nextUrl);
+    }
+
     refreshUser();
     loadMembers();
   }, []);
@@ -90,7 +135,9 @@ export function AuthProvider({ children }) {
       loginAs,
       logout,
       refreshUser,
-      loadMembers
+      loadMembers,
+      authNotice,
+      clearAuthNotice: () => setAuthNotice(null)
     }}>
       {children}
     </AuthContext.Provider>

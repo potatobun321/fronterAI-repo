@@ -15,13 +15,18 @@ export function parseCookies(req) {
 export function parseBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
+    let aborted = false;
     req.on('data', chunk => {
+      if (aborted) return;
       body += chunk.toString();
       if (body.length > 10 * 1024 * 1024) { // 10MB limit
+        aborted = true;
+        req.destroy();
         reject(new Error('Payload too large'));
       }
     });
     req.on('end', () => {
+      if (aborted) return;
       if (!body) return resolve({});
       try {
         resolve(JSON.parse(body));
@@ -29,7 +34,9 @@ export function parseBody(req) {
         reject(new Error('Invalid JSON'));
       }
     });
-    req.on('error', reject);
+    req.on('error', err => {
+      if (!aborted) reject(err);
+    });
   });
 }
 

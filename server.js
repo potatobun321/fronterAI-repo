@@ -24,8 +24,10 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Frontier AI Platform (Modular Edition) running at http://localhost:${PORT}`);
-});
+if (process.env.FRONTIER_NO_AUTO_LISTEN !== '1') {
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Frontier AI Platform (Modular Edition) running at http://localhost:${PORT}`);
+  });
+}
 
 export default server;

@@ -53,7 +53,8 @@ export async function handleDisasterRecoveryRoutes(req, res, pathname, method) {
       message: 'Database snapshot successfully generated for ₹0 Git backup repository!',
       filename,
       totalTables: Object.keys(snapshot.tables).length,
-      timestamp: snapshot.timestamp
+      timestamp: snapshot.timestamp,
+      snapshot
     });
   }
 

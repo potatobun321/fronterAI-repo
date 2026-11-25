@@ -206,6 +206,7 @@ export async function handleAiRoutes(req, res, pathname, method) {
           UPDATE tasks
           SET status = ?,
               deliverable_url = COALESCE(?, deliverable_url),
+              version = version + 1,
               updated_at = datetime('now')
           WHERE id = ?
         `).run(newStatus, deliverableUrl, taskId);
