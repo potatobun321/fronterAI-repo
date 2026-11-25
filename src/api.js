@@ -86,13 +86,15 @@ export const api = {
   onboardMember: (member) => request('/api/members', { method: 'POST', body: JSON.stringify(member) }),
   approveMember: (memberId, role, team_track) => request(`/api/members/${memberId}/approve`, { method: 'POST', body: JSON.stringify({ role, team_track }) }),
   rejectMember: (memberId) => request(`/api/members/${memberId}/reject`, { method: 'POST' }),
+  updateMember: (memberId, data) => request(`/api/members/${memberId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   removeMember: (memberId) => request(`/api/members/${memberId}`, { method: 'DELETE' }),
-  transferHost: (targetMemberId) => request('/api/members/transfer-host', { method: 'POST', body: JSON.stringify({ target_member_id: targetMemberId }) }),
+  transferHost: (targetMemberId, newRole, newTrack) => request('/api/members/transfer-host', { method: 'POST', body: JSON.stringify({ target_member_id: targetMemberId, new_role: newRole, new_track: newTrack }) }),
 
   // Peer Tasklets
   getTasklets: () => request('/api/tasklets'),
   createTasklet: (tasklet) => request('/api/tasklets', { method: 'POST', body: JSON.stringify(tasklet) }),
   updateTasklet: (taskletId, status) => request(`/api/tasklets/${taskletId}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  deleteTasklet: (taskletId) => request(`/api/tasklets/${taskletId}`, { method: 'DELETE' }),
 
   // Governance & Tickets
   getTickets: () => request('/api/tickets'),
