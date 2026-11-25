@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Modal } from './Modal';
 import { ConfirmModal } from './ConfirmModal';
-import { Users, UserPlus, ShieldAlert, ArrowRightLeft, Send, CheckCircle2, Clock, Trash2 } from 'lucide-react';
+import { Users, UserPlus, ShieldAlert, ArrowRightLeft, Send, CheckCircle2, Clock, Trash2, Pencil } from 'lucide-react';
 
 export function PeersView() {
   const { currentUser, isHost, members, loadMembers } = useAuth();
@@ -19,6 +19,9 @@ export function PeersView() {
   const [isTaskletModalOpen, setIsTaskletModalOpen] = useState(false);
   const [rejectMemberId, setRejectMemberId] = useState(null);
   const [removeMemberTarget, setRemoveMemberTarget] = useState(null);
+  const [editingMember, setEditingMember] = useState(null);
+  const [editRole, setEditRole] = useState('');
+  const [editTrack, setEditTrack] = useState('backend');
   const [approvalTracks, setApprovalTracks] = useState({});
   const [isConfirmTransferOpen, setIsConfirmTransferOpen] = useState(false);
 
@@ -31,6 +34,8 @@ export function PeersView() {
 
   // Transfer form
   const [targetHostId, setTargetHostId] = useState('');
+  const [outgoingRole, setOutgoingRole] = useState('Software Engineer');
+  const [outgoingTrack, setOutgoingTrack] = useState('backend');
 
   // Tasklet form
   const [taskletReceiverId, setTaskletReceiverId] = useState('');
@@ -126,12 +131,41 @@ export function PeersView() {
     if (!targetHostId) return;
 
     try {
-      await api.transferHost(parseInt(targetHostId, 10));
+      await api.transferHost(parseInt(targetHostId, 10), outgoingRole.trim(), outgoingTrack);
       setIsTransferModalOpen(false);
       toast.success('Authority transferred');
       window.location.reload();
     } catch (err) {
       toast.error(`Authority transfer failed: ${err.message}`);
+    }
+  };
+
+  const handleOpenEditMember = (m) => {
+    setEditingMember(m);
+    setEditRole(m.role || '');
+    setEditTrack(m.team_track || 'backend');
+  };
+
+  const handleSaveEditMember = async (e) => {
+    e.preventDefault();
+    if (!editingMember) return;
+    try {
+      await api.updateMember(editingMember.id, { role: editRole.trim(), team_track: editTrack });
+      setEditingMember(null);
+      toast.success(`Updated ${editingMember.name}'s role`);
+      await loadPeersData();
+    } catch (err) {
+      toast.error(`Update failed: ${err.message}`);
+    }
+  };
+
+  const handleDeleteTasklet = async (taskletId) => {
+    try {
+      await api.deleteTasklet(taskletId);
+      toast.info('Tasklet deleted');
+      await loadPeersData();
+    } catch (err) {
+      toast.error(`Failed to delete tasklet: ${err.message}`);
     }
   };
 
@@ -256,16 +290,29 @@ export function PeersView() {
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
                     <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{m.role}</span>
-                    {isHost && m.id !== currentUser?.id && (
-                      <button
-                        className="btn-icon"
-                        style={{ color: 'var(--google-red)', padding: '4px' }}
-                        title={`Remove ${m.name}`}
-                        aria-label={`Remove ${m.name}`}
-                        onClick={() => setRemoveMemberTarget(m)}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                    {isHost && (
+                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                        <button
+                          className="btn-icon"
+                          style={{ padding: '4px' }}
+                          title={`Edit ${m.name}'s role`}
+                          aria-label={`Edit ${m.name}'s role`}
+                          onClick={() => handleOpenEditMember(m)}
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        {m.id !== currentUser?.id && (
+                          <button
+                            className="btn-icon"
+                            style={{ color: 'var(--google-red)', padding: '4px' }}
+                            title={`Remove ${m.name}`}
+                            aria-label={`Remove ${m.name}`}
+                            onClick={() => setRemoveMemberTarget(m)}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -305,13 +352,26 @@ export function PeersView() {
                       <td>@{t.sender_name || t.sender_handle}</td>
                       <td>@{t.receiver_name || t.receiver_handle}</td>
                       <td>
-                        <button
-                          className="btn btn-secondary"
-                          style={{ padding: '3px 8px', fontSize: '0.74rem' }}
-                          onClick={() => handleToggleTasklet(t.id, t.status)}
-                        >
-                          {t.status === 'DONE' ? 'Reopen' : 'Mark Done'}
-                        </button>
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ padding: '3px 8px', fontSize: '0.74rem' }}
+                            onClick={() => handleToggleTasklet(t.id, t.status)}
+                          >
+                            {t.status === 'DONE' ? 'Reopen' : 'Mark Done'}
+                          </button>
+                          {(isHost || t.sender_id === currentUser?.id || t.receiver_id === currentUser?.id) && (
+                            <button
+                              className="btn-icon"
+                              style={{ color: 'var(--google-red)', padding: '4px' }}
+                              title="Delete tasklet"
+                              aria-label="Delete tasklet"
+                              onClick={() => handleDeleteTasklet(t.id)}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -439,7 +499,59 @@ export function PeersView() {
               ))}
             </select>
           </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="form-group">
+              <label>Your New Role</label>
+              <input
+                className="form-input"
+                value={outgoingRole}
+                onChange={e => setOutgoingRole(e.target.value)}
+                placeholder="e.g. Staff Architect"
+              />
+            </div>
+            <div className="form-group">
+              <label>Your New Track</label>
+              <select className="form-select" value={outgoingTrack} onChange={e => setOutgoingTrack(e.target.value)}>
+                <option value="backend">Backend</option>
+                <option value="frontend">Frontend</option>
+              </select>
+            </div>
+          </div>
         </div>
+      </Modal>
+
+      {/* Edit Member Role & Track Modal */}
+      <Modal
+        isOpen={Boolean(editingMember)}
+        onClose={() => setEditingMember(null)}
+        title={`Edit Role: ${editingMember?.name || ''}`}
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setEditingMember(null)}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleSaveEditMember}>Save Changes</button>
+          </>
+        }
+      >
+        <form onSubmit={handleSaveEditMember} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div className="form-group">
+            <label>Role Title *</label>
+            <input
+              className="form-input"
+              value={editRole}
+              onChange={e => setEditRole(e.target.value)}
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label>Team Track</label>
+            <select className="form-select" value={editTrack} onChange={e => setEditTrack(e.target.value)}>
+              <option value="frontend">Frontend</option>
+              <option value="backend">Backend</option>
+              <option value="lead">Lead</option>
+            </select>
+          </div>
+        </form>
       </Modal>
 
       {/* Send Tasklet Modal */}

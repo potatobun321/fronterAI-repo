@@ -84,5 +84,19 @@ export async function handleTaskletRoutes(req, res, pathname, method) {
     return sendJson(res, 200, { message: `Tasklet updated to ${status}` });
   }
 
+  if (pathname.startsWith('/api/tasklets/') && method === 'DELETE') {
+    const currentUser = getSessionUser(req);
+    if (!currentUser) return sendJson(res, 401, { error: 'Authentication required' });
+    const taskletId = parseInt(pathname.split('/')[3], 10);
+    const tasklet = db.prepare('SELECT * FROM tasklets WHERE id = ?').get(taskletId);
+    if (!tasklet) return sendJson(res, 404, { error: 'Tasklet not found' });
+    if (tasklet.sender_id !== currentUser.id && tasklet.receiver_id !== currentUser.id && !currentUser.is_host) {
+      return sendJson(res, 403, { error: 'Forbidden: Only sender, recipient, or Host can delete this tasklet.' });
+    }
+    db.prepare('DELETE FROM tasklets WHERE id = ?').run(taskletId);
+    logAudit(currentUser.handle, 'DELETE_TASKLET', `tasklet_${taskletId}`, `Deleted tasklet "${tasklet.title}"`, 'SUCCESS');
+    return sendJson(res, 200, { success: true, message: 'Tasklet deleted.' });
+  }
+
   return false;
 }

@@ -119,10 +119,10 @@ async function ensureSchema(env) {
   } catch (e) { }
 
   try {
-    if (hostEmail) {
+    const existingHost = await env.DB.prepare('SELECT id FROM members WHERE is_host = 1 LIMIT 1').first();
+    if (!existingHost && hostEmail) {
       const designatedHost = await env.DB.prepare('SELECT id, is_host FROM members WHERE LOWER(email) = ? OR id = 1').bind(hostEmail).first();
-      if (designatedHost && designatedHost.is_host !== 1) {
-        await env.DB.prepare("UPDATE members SET is_host = 0, role = 'Software Engineer', team_track = 'backend' WHERE is_host = 1").run();
+      if (designatedHost) {
         await env.DB.prepare("UPDATE members SET is_host = 1, role = 'Team Host & Lead', team_track = 'lead', is_allowed = 1 WHERE id = ?").bind(designatedHost.id).run();
       }
     }
@@ -703,7 +703,7 @@ export async function onRequest(context) {
       const member = await getAuthMember(request, env);
       if (!isHostMember(member, env)) return jsonResponse({ error: 'Forbidden: Only the Team Host can transfer admin authority.' }, 403);
 
-      const { target_member_id } = await request.json();
+      const { target_member_id, new_role, new_track } = await request.json();
       const targetId = parseInt(target_member_id, 10);
       if (!targetId) return jsonResponse({ error: 'target_member_id is required' }, 400);
       if (targetId === member.id) return jsonResponse({ error: 'You are already the Team Host.' }, 400);
@@ -713,9 +713,12 @@ export async function onRequest(context) {
         return jsonResponse({ error: 'Target member not found or not approved.' }, 404);
       }
 
+      const nextRole = (new_role && String(new_role).trim()) || 'Software Engineer';
+      const nextTrack = ['frontend', 'backend', 'lead'].includes(new_track) ? new_track : 'backend';
+
       await env.DB.batch([
         env.DB.prepare("UPDATE members SET is_host = 1, role = 'Team Host & Lead', team_track = 'lead' WHERE id = ?").bind(targetId),
-        env.DB.prepare("UPDATE members SET is_host = 0, role = 'Software Engineer', team_track = 'backend' WHERE id = ?").bind(member.id)
+        env.DB.prepare('UPDATE members SET is_host = 0, role = ?, team_track = ? WHERE id = ?').bind(nextRole, nextTrack, member.id)
       ]);
 
       await logAudit(env, member.handle, 'HOST_AUTHORITY_TRANSFERRED', `member_${targetId}`, `Team Host authority transferred from ${member.name} to ${targetMember.name}`);
@@ -725,6 +728,21 @@ export async function onRequest(context) {
         message: `Team Host authority transferred to ${targetMember.name}. You have surrendered administrative privileges.`,
         new_host: { id: targetMember.id, name: targetMember.name, handle: targetMember.handle }
       });
+    }
+
+    if (pathname.match(/^\/api\/members\/\d+$/) && method === 'PATCH') {
+      const member = await getAuthMember(request, env);
+      if (!member || !member.is_host) return jsonResponse({ error: 'Forbidden: Only Team Lead can update member roles.' }, 403);
+      const targetId = parseInt(pathname.split('/')[3], 10);
+      const targetMember = await env.DB.prepare('SELECT * FROM members WHERE id = ?').bind(targetId).first();
+      if (!targetMember) return jsonResponse({ error: 'Member not found' }, 404);
+      const body = await request.json().catch(() => ({}));
+      const nextRole = (body.role && String(body.role).trim()) || targetMember.role;
+      const candidateTrack = body.team_track ? String(body.team_track).trim().toLowerCase() : targetMember.team_track;
+      const nextTrack = ['frontend', 'backend', 'lead'].includes(candidateTrack) ? candidateTrack : targetMember.team_track;
+      await env.DB.prepare('UPDATE members SET role = ?, team_track = ? WHERE id = ?').bind(nextRole, nextTrack, targetId).run();
+      await logAudit(env, member.handle, 'MEMBER_UPDATED', `member_${targetId}`, `Updated ${targetMember.name} role to "${nextRole}" [${nextTrack}].`);
+      return jsonResponse({ success: true, message: `Updated ${targetMember.name}'s role.` });
     }
 
     // --------------------------------------------------------------------------
@@ -1366,6 +1384,20 @@ export async function onRequest(context) {
       const { status } = await request.json();
       await env.DB.prepare("UPDATE tasklets SET status = ?, updated_at = datetime('now') WHERE id = ?").bind(status, id).run();
       return jsonResponse({ success: true });
+    }
+
+    if (pathname.startsWith('/api/tasklets/') && method === 'DELETE') {
+      const member = await getAuthMember(request, env);
+      if (!member) return jsonResponse({ error: 'Unauthorized' }, 401);
+      const id = parseInt(pathname.split('/')[3], 10);
+      const tasklet = await env.DB.prepare('SELECT * FROM tasklets WHERE id = ?').bind(id).first();
+      if (!tasklet) return jsonResponse({ error: 'Tasklet not found' }, 404);
+      if (tasklet.sender_id !== member.id && tasklet.receiver_id !== member.id && !member.is_host) {
+        return jsonResponse({ error: 'Forbidden: Only sender, recipient, or Host can delete this tasklet.' }, 403);
+      }
+      await env.DB.prepare('DELETE FROM tasklets WHERE id = ?').bind(id).run();
+      await logAudit(env, member.handle, 'DELETE_TASKLET', `tasklet_${id}`, `Deleted tasklet "${tasklet.title}"`);
+      return jsonResponse({ success: true, message: 'Tasklet deleted.' });
     }
 
     // --------------------------------------------------------------------------

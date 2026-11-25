@@ -267,9 +267,11 @@ export async function handleMemberRoutes(req, res, pathname, method) {
     }
 
     try {
+      const nextRole = (body.new_role && String(body.new_role).trim()) || 'Software Engineer';
+      const nextTrack = ['frontend', 'backend', 'lead'].includes(body.new_track) ? body.new_track : 'backend';
       db.exec('BEGIN');
       db.prepare("UPDATE members SET is_host = 1, role = 'Team Host & Lead', team_track = 'lead' WHERE id = ?").run(targetMemberId);
-      db.prepare("UPDATE members SET is_host = 0, role = 'Software Engineer', team_track = 'backend' WHERE id = ?").run(currentUser.id);
+      db.prepare('UPDATE members SET is_host = 0, role = ?, team_track = ? WHERE id = ?').run(nextRole, nextTrack, currentUser.id);
       db.exec('COMMIT');
     } catch (err) {
       try { db.exec('ROLLBACK'); } catch (_) {}
@@ -291,6 +293,25 @@ export async function handleMemberRoutes(req, res, pathname, method) {
       new_host: { id: targetMember.id, name: targetMember.name, handle: targetMember.handle },
       previous_host: { id: currentUser.id, name: currentUser.name, handle: currentUser.handle }
     });
+  }
+
+  if (pathname.match(/^\/api\/members\/\d+$/) && method === 'PATCH') {
+    const currentUser = getSessionUser(req);
+    if (!currentUser || !currentUser.is_host) {
+      return sendJson(res, 403, { error: 'Forbidden: Only the Team Host can update member roles.' });
+    }
+    const memberId = parseInt(pathname.split('/')[3], 10);
+    const targetMember = db.prepare('SELECT * FROM members WHERE id = ?').get(memberId);
+    if (!targetMember) {
+      return sendJson(res, 404, { error: 'Member not found.' });
+    }
+    const body = await parseBody(req);
+    const nextRole = (body.role && String(body.role).trim()) || targetMember.role;
+    const candidateTrack = body.team_track ? String(body.team_track).trim().toLowerCase() : targetMember.team_track;
+    const nextTrack = ['frontend', 'backend', 'lead'].includes(candidateTrack) ? candidateTrack : targetMember.team_track;
+    db.prepare('UPDATE members SET role = ?, team_track = ? WHERE id = ?').run(nextRole, nextTrack, memberId);
+    logAudit(currentUser.handle, 'MEMBER_UPDATED', `member_${memberId}`, `Updated ${targetMember.name} role to "${nextRole}" [${nextTrack}].`, 'SUCCESS');
+    return sendJson(res, 200, { success: true, message: `Updated ${targetMember.name}'s role.` });
   }
 
   return false;
