@@ -36,6 +36,8 @@ export const api = {
   getCurrentUser: () => request('/api/auth/current'),
   loginAs: (payload) => request('/api/auth/login-as', { method: 'POST', body: JSON.stringify(payload) }),
   logout: () => request('/api/auth/logout', { method: 'POST' }),
+  applyForAccess: (payload) => request('/api/auth/apply', { method: 'POST', body: JSON.stringify(payload) }),
+  checkApplicationStatus: (email) => request(`/api/auth/application-status?email=${encodeURIComponent(email)}`),
 
   // Tasks
   getTasks: () => request('/api/tasks'),

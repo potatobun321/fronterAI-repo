@@ -2,7 +2,7 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Sparkles, Kanban, Video, Vote, Users, Settings } from 'lucide-react';
 
-export function MobileBottomNav({ currentView, onChangeView, taskCount = 0 }) {
+export function MobileBottomNav({ currentView, onChangeView, taskCount = 0, pendingCount = 0 }) {
   const { isHost } = useAuth();
 
   const tabs = [
@@ -10,7 +10,7 @@ export function MobileBottomNav({ currentView, onChangeView, taskCount = 0 }) {
     { id: 'tasks', label: 'Tasks', icon: Kanban, badge: taskCount },
     { id: 'callroom', label: 'Meet', icon: Video },
     { id: 'voting', label: 'Review', icon: Vote },
-    { id: 'peers', label: 'Team', icon: Users },
+    { id: 'peers', label: 'Team', icon: Users, badge: pendingCount },
     { id: 'settings', label: isHost ? 'Admin' : 'Gov', icon: Settings }
   ];
 

@@ -75,6 +75,56 @@ function getOAuthSecret(env, url) {
   throw new Error('GOOGLE_CLIENT_SECRET (or JWT_SECRET) is required in production.');
 }
 
+async function sendEmailNotification(env, toEmail, subject, textBody) {
+  if (!toEmail || !env || !env.RESEND_API_KEY) {
+    return { sent: false, reason: 'RESEND_API_KEY not configured' };
+  }
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${String(env.RESEND_API_KEY).trim()}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: env.EMAIL_FROM || 'Xenon Workspace <onboarding@resend.dev>',
+        to: [toEmail],
+        subject,
+        text: textBody
+      })
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.warn('Email notification failed:', res.status, errText);
+      return { sent: false, reason: `HTTP ${res.status}` };
+    }
+    return { sent: true };
+  } catch (err) {
+    console.warn('Email notification error:', err.message);
+    return { sent: false, reason: err.message };
+  }
+}
+
+async function resolveMemberId(env, identifier) {
+  if (!identifier) return null;
+  const str = String(identifier).trim();
+  // Extract @handle if formatted like "kartikay (@kart123.san)"
+  const handleMatch = str.match(/@([a-zA-Z0-9_.-]+)/);
+  if (handleMatch) {
+    const h = handleMatch[1].toLowerCase();
+    const byHandle = await env.DB.prepare('SELECT id FROM members WHERE is_allowed = 1 AND LOWER(handle) = ? LIMIT 1').bind(h).first();
+    if (byHandle) return byHandle.id;
+  }
+  const cleanName = str.replace(/\([^)]*\)/g, '').replace(/^@/, '').trim().toLowerCase();
+  if (!cleanName) return null;
+  const exact = await env.DB.prepare('SELECT id FROM members WHERE is_allowed = 1 AND (LOWER(handle) = ? OR LOWER(name) = ?) LIMIT 1')
+    .bind(cleanName, cleanName).first();
+  if (exact) return exact.id;
+  const fuzzy = await env.DB.prepare('SELECT id FROM members WHERE is_allowed = 1 AND (LOWER(handle) LIKE ? OR LOWER(name) LIKE ?) LIMIT 1')
+    .bind(`%${cleanName}%`, `%${cleanName}%`).first();
+  return fuzzy ? fuzzy.id : null;
+}
+
 function isHostMember(member, env = {}) {
   if (!member) return false;
   return Number(member.is_host) === 1;
@@ -646,6 +696,85 @@ export async function onRequest(context) {
       });
     }
 
+    // Public Registration Request (for users not yet on the allowlist)
+    if (pathname === '/api/auth/apply' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const cleanName = String(body.name || '').trim();
+      const cleanEmail = String(body.email || '').trim().toLowerCase();
+      const cleanRole = String(body.role || 'Contributor').trim().slice(0, 60);
+      const validTrack = ['frontend', 'backend'].includes(body.team_track) ? body.team_track : 'backend';
+
+      if (!cleanName || !cleanEmail || !cleanEmail.includes('@') || cleanEmail.length < 5) {
+        return jsonResponse({ error: 'Valid name and email address are required.' }, 400);
+      }
+
+      const existing = await env.DB.prepare('SELECT id, is_allowed, name FROM members WHERE LOWER(email) = LOWER(?)').bind(cleanEmail).first();
+      if (existing) {
+        if (existing.is_allowed === 1) {
+          return jsonResponse({ status: 'APPROVED', message: 'This email is already approved. Please sign in with Google.' });
+        }
+        return jsonResponse({ status: 'PENDING', message: 'Your registration request is already pending Team Lead approval.' });
+      }
+
+      const baseHandle = (cleanEmail.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 26) || 'user';
+      let uniqueHandle = baseHandle;
+      const handleExists = await env.DB.prepare('SELECT id FROM members WHERE LOWER(handle) = LOWER(?)').bind(uniqueHandle).first();
+      if (handleExists) {
+        uniqueHandle = `${baseHandle}_${Math.floor(100 + Math.random() * 900)}`;
+      }
+
+      try {
+        await env.DB.prepare(`
+          INSERT INTO members (handle, name, role, team_track, email, is_host, is_allowed)
+          VALUES (?, ?, ?, ?, ?, 0, 0)
+        `).bind(uniqueHandle, cleanName, cleanRole, validTrack, cleanEmail).run();
+      } catch (e) {
+        await env.DB.prepare(`
+          INSERT INTO members (github_numeric_id, handle, name, role, team_track, email, is_host, is_allowed)
+          VALUES (0, ?, ?, ?, ?, ?, 0, 0)
+        `).bind(uniqueHandle, cleanName, cleanRole, validTrack, cleanEmail).run();
+      }
+
+      await logAudit(env, `apply_${cleanEmail}`, 'ACCESS_REQUEST_SUBMITTED', 'auth_allowlist',
+        `${cleanName} (${cleanEmail}) applied for ${cleanRole} [${validTrack}]. Queued for Team Lead approval.`, 'PENDING');
+
+      if (env.HOST_EMAIL) {
+        await sendEmailNotification(
+          env,
+          env.HOST_EMAIL,
+          `[Xenon] New registration request from ${cleanName}`,
+          `${cleanName} (${cleanEmail}) applied to join Xenon as ${cleanRole} (${validTrack}).\n\nReview and approve/decline in Team & Peers: ${url.origin}`
+        );
+      }
+
+      return jsonResponse({
+        status: 'PENDING',
+        message: 'Registration request submitted! The Team Lead has been notified.'
+      }, 201);
+    }
+
+    // Check Registration Status by Email
+    if (pathname === '/api/auth/application-status' && method === 'GET') {
+      const email = String(url.searchParams.get('email') || '').trim().toLowerCase();
+      if (!email || !email.includes('@')) {
+        return jsonResponse({ error: 'Valid email is required.' }, 400);
+      }
+      const member = await env.DB.prepare('SELECT is_allowed, role FROM members WHERE LOWER(email) = LOWER(?)').bind(email).first();
+      if (member) {
+        return jsonResponse({
+          status: member.is_allowed === 1 ? 'APPROVED' : 'PENDING',
+          role: member.role
+        });
+      }
+      const rejected = await env.DB.prepare(
+        "SELECT id FROM audit_events WHERE action = 'ACCESS_REQUEST_REJECTED' AND target = ? ORDER BY id DESC LIMIT 1"
+      ).bind(email).first();
+      if (rejected) {
+        return jsonResponse({ status: 'REJECTED' });
+      }
+      return jsonResponse({ status: 'NOT_FOUND' });
+    }
+
     if (pathname === '/api/auth/login-as' && method === 'POST') {
       const isLocalDev = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
       if (!isLocalDev) {
@@ -790,12 +919,23 @@ export async function onRequest(context) {
       const member = await getAuthMember(request, env);
       if (!member || !member.is_host) return jsonResponse({ error: 'Only Team Lead can approve members' }, 403);
       const targetId = pathname.split('/')[3];
+      const targetMember = await env.DB.prepare('SELECT id, name, email, role FROM members WHERE id = ?').bind(targetId).first();
       const body = await request.json().catch(() => ({}));
-      const role = (body && body.role && body.role.trim()) || 'Engineer';
+      const role = (body && body.role && body.role.trim()) || (targetMember?.role && targetMember.role !== 'Pending Review' ? targetMember.role : 'Engineer');
       const teamTrack = (body && body.team_track) || 'backend';
       await env.DB.prepare('UPDATE members SET is_allowed = 1, role = ?, team_track = ? WHERE id = ?').bind(role, teamTrack, targetId).run();
       await logAudit(env, member.handle, 'MEMBER_APPROVED', 'members', `Approved member #${targetId} as ${role} [${teamTrack}]`);
-      return jsonResponse({ success: true, message: 'Member approved successfully' });
+
+      let emailResult = { sent: false };
+      if (targetMember?.email) {
+        emailResult = await sendEmailNotification(
+          env,
+          targetMember.email,
+          'You have been approved for Xenon',
+          `Hi ${targetMember.name || 'there'},\n\nYour registration request for Xenon has been approved by ${member.name} (${role} · ${teamTrack}).\n\nSign in with Google here: ${url.origin}`
+        );
+      }
+      return jsonResponse({ success: true, message: 'Member approved successfully', emailSent: emailResult.sent });
     }
 
     if (pathname.match(/^\/api\/members\/\d+\/reject$/) && method === 'POST') {
@@ -805,6 +945,7 @@ export async function onRequest(context) {
       if (targetId === 1 || targetId === member.id) {
         return jsonResponse({ error: 'Host account cannot be removed or declined.' }, 400);
       }
+      const targetMember = await env.DB.prepare('SELECT id, name, email FROM members WHERE id = ?').bind(targetId).first();
       try {
         // Complete cascade purge in strict dependency order:
         // 1. Sessions
@@ -833,8 +974,25 @@ export async function onRequest(context) {
         // 9. Completely purge member from database
         await env.DB.prepare('DELETE FROM members WHERE id = ?').bind(targetId).run();
 
-        await logAudit(env, member.handle, 'MEMBER_REJECTED', 'members', `Permanently purged access request for member #${targetId}`);
-        return jsonResponse({ success: true, message: 'Access request permanently rejected' });
+        await logAudit(
+          env,
+          member.handle,
+          'ACCESS_REQUEST_REJECTED',
+          targetMember?.email ? targetMember.email.toLowerCase() : `member_${targetId}`,
+          `Declined registration request for ${targetMember?.name || `member #${targetId}`}`
+        );
+
+        let emailResult = { sent: false };
+        if (targetMember?.email) {
+          emailResult = await sendEmailNotification(
+            env,
+            targetMember.email,
+            'Xenon registration request update',
+            `Hi ${targetMember.name || 'there'},\n\nYour registration request for Xenon was declined by the Team Lead.`
+          );
+        }
+
+        return jsonResponse({ success: true, message: 'Access request permanently rejected', emailSent: emailResult.sent });
       } catch (err) {
         console.error('Failed to purge member:', err);
         return jsonResponse({ error: `Database purge failed: ${err.message}` }, 500);
@@ -2085,9 +2243,8 @@ When performing or preparing an operational action, output a concise friendly su
 
         let assigneeId = member.id;
         if (payload.assigned_to) {
-          const raw = String(payload.assigned_to).replace(/^@/, '').toLowerCase().trim();
-          const target = await env.DB.prepare('SELECT id FROM members WHERE LOWER(handle) = ? OR LOWER(name) LIKE ? LIMIT 1').bind(raw, `%${raw}%`).first();
-          if (target) assigneeId = target.id;
+          const resolved = await resolveMemberId(env, payload.assigned_to);
+          if (resolved) assigneeId = resolved;
         }
 
         const track = ['frontend', 'backend', 'lead'].includes(payload.track) ? payload.track : 'backend';
@@ -2218,9 +2375,7 @@ When performing or preparing an operational action, output a concise friendly su
       if (actionType === 'SEND_TASKLET') {
         let receiverId = parseInt(payload.receiver_id, 10);
         if (!receiverId && payload.receiver) {
-          const raw = String(payload.receiver).replace(/^@/, '').toLowerCase().trim();
-          const target = await env.DB.prepare('SELECT id FROM members WHERE LOWER(handle) = ? OR LOWER(name) LIKE ? LIMIT 1').bind(raw, `%${raw}%`).first();
-          if (target) receiverId = target.id;
+          receiverId = await resolveMemberId(env, payload.receiver);
         }
 
         if (!receiverId) return jsonResponse({ error: 'Valid receiver member is required.' }, 400);
@@ -2251,9 +2406,7 @@ When performing or preparing an operational action, output a concise friendly su
       if (actionType === 'SEND_FEEDBACK') {
         let receiverId = parseInt(payload.receiver_id, 10);
         if (!receiverId && payload.receiver) {
-          const raw = String(payload.receiver).replace(/^@/, '').toLowerCase().trim();
-          const target = await env.DB.prepare('SELECT id FROM members WHERE LOWER(handle) = ? OR LOWER(name) LIKE ? LIMIT 1').bind(raw, `%${raw}%`).first();
-          if (target) receiverId = target.id;
+          receiverId = await resolveMemberId(env, payload.receiver);
         }
         if (!receiverId) return jsonResponse({ error: 'Valid receiver member is required.' }, 400);
         const receiver = await env.DB.prepare('SELECT id, name, handle FROM members WHERE id = ?').bind(receiverId).first();

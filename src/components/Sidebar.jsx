@@ -2,7 +2,7 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Sparkles, Kanban, Video, Vote, Users, Settings } from 'lucide-react';
 
-export function Sidebar({ currentView, onChangeView, taskCount = 0, isCollapsed = false }) {
+export function Sidebar({ currentView, onChangeView, taskCount = 0, pendingCount = 0, isCollapsed = false }) {
   const { currentUser, isHost } = useAuth();
 
   const navItems = [
@@ -10,7 +10,7 @@ export function Sidebar({ currentView, onChangeView, taskCount = 0, isCollapsed 
     { id: 'tasks', label: 'Tasks', icon: Kanban, badge: taskCount },
     { id: 'callroom', label: 'Call Room', icon: Video },
     { id: 'voting', label: 'Peer Review', icon: Vote },
-    { id: 'peers', label: 'Team & Peers', icon: Users },
+    { id: 'peers', label: 'Team & Peers', icon: Users, badge: pendingCount, alertBadge: pendingCount > 0 },
     { id: 'settings', label: isHost ? 'Governance' : 'Audit & Access', icon: Settings }
   ];
 

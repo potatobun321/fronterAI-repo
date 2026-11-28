@@ -6,6 +6,7 @@ import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { CommandPalette } from './components/CommandPalette';
+import { AuthGate } from './components/AuthGate';
 
 const AgenticWorkspace = lazy(() => import('./components/AgenticWorkspace').then(m => ({ default: m.AgenticWorkspace })));
 const TasksView = lazy(() => import('./components/TasksView').then(m => ({ default: m.TasksView })));
@@ -16,12 +17,13 @@ const SettingsView = lazy(() => import('./components/SettingsView').then(m => ({
 const OraclePanel = lazy(() => import('./components/OraclePanel').then(m => ({ default: m.OraclePanel })));
 
 function AppContent() {
-  const { currentUser, isHost, theme, toggleTheme, authNotice, clearAuthNotice } = useAuth();
+  const { currentUser, isHost, loading, theme, toggleTheme, authNotice, clearAuthNotice } = useAuth();
   const toast = useToast();
   const [currentView, setCurrentView] = useState(() => localStorage.getItem('frontier_active_view') || 'command');
   const [isOracleOpen, setIsOracleOpen] = useState(false);
   const [isCmdOpen, setIsCmdOpen] = useState(false);
   const [taskCount, setTaskCount] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     return localStorage.getItem('frontier_sidebar_collapsed') === 'true';
   });
@@ -44,25 +46,32 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
+    if (!currentUser) return;
     const loadCount = async () => {
       try {
         const res = await api.getTasks();
         const active = (res?.tasks || []).filter(t => t.status !== 'COMPLETED').length;
         setTaskCount(active);
+        if (isHost) {
+          const pendRes = await api.getPendingMembers().catch(() => ({ pending: [] }));
+          setPendingCount((pendRes?.pending || []).length);
+        } else {
+          setPendingCount(0);
+        }
       } catch { }
     };
     loadCount();
     window.addEventListener('frontier:workspace-updated', loadCount);
-    const pollId = currentUser ? setInterval(() => {
+    const pollId = setInterval(() => {
       if (document.visibilityState === 'visible') {
         window.dispatchEvent(new CustomEvent('frontier:workspace-updated'));
       }
-    }, 25000) : null;
+    }, 25000);
     return () => {
       window.removeEventListener('frontier:workspace-updated', loadCount);
-      if (pollId) clearInterval(pollId);
+      clearInterval(pollId);
     };
-  }, [currentUser?.id]);
+  }, [currentUser?.id, isHost]);
 
   useEffect(() => {
     if (!authNotice) return;
@@ -80,6 +89,18 @@ function AppContent() {
     });
   };
 
+  if (loading) {
+    return (
+      <div style={{ height: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+        Verifying Xenon session...
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return <AuthGate />;
+  }
+
   return (
     <div className="app-container">
       <Header
@@ -96,6 +117,7 @@ function AppContent() {
           currentView={currentView}
           onChangeView={handleSelectView}
           taskCount={taskCount}
+          pendingCount={pendingCount}
           isCollapsed={isSidebarCollapsed}
         />
 
@@ -122,6 +144,7 @@ function AppContent() {
         currentView={currentView}
         onChangeView={handleSelectView}
         taskCount={taskCount}
+        pendingCount={pendingCount}
       />
 
       <CommandPalette

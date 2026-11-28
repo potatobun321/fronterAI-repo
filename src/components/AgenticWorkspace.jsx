@@ -40,7 +40,8 @@ export function AgenticWorkspace({ onOpenClassicView }) {
     liveEvent: null,
     voting: null,
     pendingTasklets: [],
-    pendingTickets: []
+    pendingTickets: [],
+    pendingMembers: []
   });
   const messagesEndRef = useRef(null);
 
@@ -58,13 +59,16 @@ export function AgenticWorkspace({ onOpenClassicView }) {
 
       let pendingTasklets = [];
       let pendingTickets = [];
+      let pendingMembers = [];
       if (currentUser) {
-        const [taskletsRes, ticketsRes] = await Promise.all([
+        const [taskletsRes, ticketsRes, membersPendRes] = await Promise.all([
           api.getTasklets().catch(() => ({ tasklets: [] })),
-          api.getTickets().catch(() => ({ tickets: [] }))
+          api.getTickets().catch(() => ({ tickets: [] })),
+          isHost ? api.getPendingMembers().catch(() => ({ pending: [] })) : Promise.resolve({ pending: [] })
         ]);
         pendingTasklets = (taskletsRes?.tasklets || []).filter(t => t.receiver_id === currentUser.id && t.status !== 'DONE');
         pendingTickets = (ticketsRes?.tickets || []).filter(tk => tk.status === 'PENDING_APPROVAL');
+        pendingMembers = membersPendRes?.pending || [];
       }
 
       setPulse({
@@ -73,7 +77,8 @@ export function AgenticWorkspace({ onOpenClassicView }) {
         liveEvent,
         voting: votingRes?.session || null,
         pendingTasklets,
-        pendingTickets
+        pendingTickets,
+        pendingMembers
       });
     } catch { }
   };
@@ -484,6 +489,21 @@ export function AgenticWorkspace({ onOpenClassicView }) {
 
       {/* Right: Live Workspace Pulse Rail (stacks cleanly when toggled on mobile) */}
       <div className={`agentic-pulse-rail ${showMobilePulse ? 'mobile-expanded' : ''}`}>
+        {isHost && pulse.pendingMembers.length > 0 && (
+          <div className="card" style={{ border: '1px solid var(--google-amber)', padding: '14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <span style={{ fontWeight: 600, fontSize: '0.84rem', color: 'var(--google-amber)' }}>
+                Registration Requests ({pulse.pendingMembers.length})
+              </span>
+              <button className="btn-icon" style={{ width: '28px', height: '28px' }} onClick={() => onOpenClassicView('peers')} title="Review in Team & Peers">
+                <ArrowUpRight size={13} />
+              </button>
+            </div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+              {pulse.pendingMembers[0].name} ({pulse.pendingMembers[0].email}) awaiting approval.
+            </div>
+          </div>
+        )}
         {pulse.liveEvent && (
           <div className="card" style={{ border: '1px solid var(--google-green)', padding: '14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--google-green)', fontWeight: 600, fontSize: '0.78rem', marginBottom: '6px' }}>

@@ -273,48 +273,48 @@ export function PeersView() {
               {members.map(m => {
                 const trackKey = m.is_host === 1 ? 'lead' : ((m.team_track === 'lead' ? 'backend' : m.team_track) || 'backend');
                 return (
-                <div key={m.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.94rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {m.name}
+                  <div key={m.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.94rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {m.name}
+                        </div>
+                        <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', overflowWrap: 'anywhere' }}>{m.email || `@${m.handle}`}</div>
                       </div>
-                      <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', overflowWrap: 'anywhere' }}>{m.email || `@${m.handle}`}</div>
+                      <span className="track-dot-label">
+                        <span className={`track-dot ${trackKey}`}></span>
+                        {trackKey}
+                      </span>
                     </div>
-                    <span className="track-dot-label">
-                      <span className={`track-dot ${trackKey}`}></span>
-                      {trackKey}
-                    </span>
-                  </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-                    <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{m.role}</span>
-                    {isHost && (
-                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                        <button
-                          className="btn-icon"
-                          style={{ padding: '4px' }}
-                          title={`Edit ${m.name}'s role`}
-                          aria-label={`Edit ${m.name}'s role`}
-                          onClick={() => handleOpenEditMember(m)}
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        {m.id !== currentUser?.id && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{m.role}</span>
+                      {isHost && (
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                           <button
                             className="btn-icon"
-                            style={{ color: 'var(--google-red)', padding: '4px' }}
-                            title={`Remove ${m.name}`}
-                            aria-label={`Remove ${m.name}`}
-                            onClick={() => setRemoveMemberTarget(m)}
+                            style={{ padding: '4px' }}
+                            title={`Edit ${m.name}'s role`}
+                            aria-label={`Edit ${m.name}'s role`}
+                            onClick={() => handleOpenEditMember(m)}
                           >
-                            <Trash2 size={14} />
+                            <Pencil size={13} />
                           </button>
-                        )}
-                      </div>
-                    )}
+                          {m.id !== currentUser?.id && (
+                            <button
+                              className="btn-icon"
+                              style={{ color: 'var(--google-red)', padding: '4px' }}
+                              title={`Remove ${m.name}`}
+                              aria-label={`Remove ${m.name}`}
+                              onClick={() => setRemoveMemberTarget(m)}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
                 );
               })}
             </div>

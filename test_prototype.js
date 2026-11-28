@@ -269,6 +269,129 @@ async function runTests() {
     assert(transferBack.status === 200, `Transfer host back failed: ${transferBack.status}`);
     console.log(`[PASS] 9. Host Authority Transfer round-trip verified.`);
 
+    // 10. Meeting Slot Editing (Host-only + HTTPS validation)
+    await testFetch(`${base}/api/auth/login-as`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ member_id: devId })
+    });
+    const devSlotEdit = await testFetch(`${base}/api/meetings/slots/1`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slot_name: 'Hacked Bridge' })
+    });
+    assert(devSlotEdit.status === 403, `Expected 403 for participant slot edit, got ${devSlotEdit.status}`);
+
+    await testFetch(`${base}/api/auth/login-as`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ member_id: host.id })
+    });
+    const badSlotUrl = await testFetch(`${base}/api/meetings/slots/1`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ raw_url: 'http://insecure.example.com' })
+    });
+    assert(badSlotUrl.status === 400, `Expected 400 for non-HTTPS slot URL, got ${badSlotUrl.status}`);
+
+    const goodSlotEdit = await testFetch(`${base}/api/meetings/slots/1`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slot_name: 'Xenon Core Bridge 1', raw_url: 'https://meet.google.com/abc-defg-hij' })
+    });
+    assert(goodSlotEdit.status === 200, `Host slot edit failed: ${goodSlotEdit.status}`);
+    console.log(`[PASS] 10. Meeting Slot Editing: RBAC 403, HTTPS validation 400, and Host update 200 verified.`);
+
+    // 11. 2-Man Governance Tickets & Audit Hash Chain
+    const ticketRes = await testFetch(`${base}/api/tickets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Prod D1 Migration', reason: 'Schema update', scope: 'd1_admin', duration_minutes: 30 })
+    });
+    const ticketData = await ticketRes.json();
+    const ticketId = ticketData.id || ticketData.ticketId;
+    assert(ticketRes.status === 201 && ticketId, `Ticket creation failed: ${JSON.stringify(ticketData)}`);
+
+    const selfApprove = await testFetch(`${base}/api/tickets/${ticketId}/approve`, { method: 'POST' });
+    assert(selfApprove.status === 403, `Expected 403 for self-approval, got ${selfApprove.status}`);
+
+    await testFetch(`${base}/api/auth/login-as`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ member_id: devId })
+    });
+    const peerApprove = await testFetch(`${base}/api/tickets/${ticketId}/approve`, { method: 'POST' });
+    assert(peerApprove.status === 200, `Peer approval failed: ${peerApprove.status}`);
+
+    await testFetch(`${base}/api/auth/login-as`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ member_id: host.id })
+    });
+    const verifyRes = await testFetch(`${base}/api/audit/verify`);
+    const verifyData = await verifyRes.json();
+    assert(verifyRes.status === 200 && verifyData.valid === true, `Audit chain verification failed: ${JSON.stringify(verifyData)}`);
+    console.log(`[PASS] 11. 2-Man Governance & Audit Hash Chain: Self-approval blocked (403), peer sign-off (200), chain valid (${verifyData.totalChecked} events).`);
+
+    // 12. Peer Tasklets CRUD
+    const tlCreate = await testFetch(`${base}/api/tasklets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ receiver_id: devId, title: 'Review Xenon UI', description: 'Check mobile header' })
+    });
+    const tlData = await tlCreate.json();
+    const tlId = tlData.id || tlData.taskletId;
+    assert(tlCreate.status === 201 && tlId, `Tasklet create failed: ${JSON.stringify(tlData)}`);
+
+    const tlPatch = await testFetch(`${base}/api/tasklets/${tlId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'DONE' })
+    });
+    assert(tlPatch.status === 200, `Tasklet update failed: ${tlPatch.status}`);
+
+    const tlDel = await testFetch(`${base}/api/tasklets/${tlId}`, { method: 'DELETE' });
+    assert(tlDel.status === 200, `Tasklet delete failed: ${tlDel.status}`);
+    console.log(`[PASS] 12. Peer Tasklets CRUD verified.`);
+
+    // 13. Registration Apply, Status Check, Approve & Reject
+    const applyRes = await fetch(`${base}/api/auth/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'New Applicant', email: 'applicant@example.com', role: 'ML Engineer', team_track: 'backend' })
+    });
+    assert(applyRes.status === 201, `Registration apply failed: ${applyRes.status}`);
+
+    const statusPending = await fetch(`${base}/api/auth/application-status?email=applicant@example.com`);
+    const statusPendingData = await statusPending.json();
+    assert(statusPendingData.status === 'PENDING', `Expected PENDING status, got ${JSON.stringify(statusPendingData)}`);
+
+    // Host rejects applicant -> status becomes REJECTED
+    const pendListRes = await testFetch(`${base}/api/members/pending`);
+    const pendList = await pendListRes.json();
+    const applicant = (pendList.pending || []).find(p => p.email === 'applicant@example.com');
+    assert(applicant, 'Applicant not found in pending list');
+
+    const rejectRes = await testFetch(`${base}/api/members/${applicant.id}/reject`, { method: 'POST' });
+    assert(rejectRes.status === 200, `Reject failed: ${rejectRes.status}`);
+
+    const statusRejected = await fetch(`${base}/api/auth/application-status?email=applicant@example.com`);
+    const statusRejectedData = await statusRejected.json();
+    assert(statusRejectedData.status === 'REJECTED', `Expected REJECTED status, got ${JSON.stringify(statusRejectedData)}`);
+    console.log(`[PASS] 13. Registration Apply, Pending Queue, Reject & Status Check verified.`);
+
+    // 14. AI SEND_TASKLET with formatted receiver string "Test Developer (@test_dev)"
+    const formattedTasklet = await testFetch(`${base}/api/ai/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'SEND_TASKLET',
+        payload: { receiver: 'Test Developer (@test_dev)', title: 'Formatted Handle Ping', description: 'Testing @handle extraction' }
+      })
+    });
+    assert(formattedTasklet.status === 200, `Formatted SEND_TASKLET failed: ${formattedTasklet.status}`);
+    console.log(`[PASS] 14. AI SEND_TASKLET with formatted "Name (@handle)" resolved cleanly.`);
+
     console.log('\n🎉 ALL CLOUDFLARE WORKER + D1 VERIFICATION CHECKS PASSED!');
   } catch (err) {
     console.error('\n❌ TEST FAILED:', err);
