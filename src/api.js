@@ -55,6 +55,7 @@ export const api = {
     };
   },
   createMeeting: (event) => request('/api/calendar', { method: 'POST', body: JSON.stringify(event) }),
+  updateMeetingSlot: (slotId, data) => request(`/api/meetings/slots/${slotId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   pingMeeting: (eventId) => request(`/api/calendar/${eventId}/ping`, { method: 'POST' }),
   endMeeting: (eventId) => request(`/api/calendar/${eventId}/end`, { method: 'POST' }),
   deleteCalendarEvent: (eventId) => request(`/api/calendar/${eventId}`, { method: 'DELETE' }),

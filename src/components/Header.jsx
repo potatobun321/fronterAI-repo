@@ -48,8 +48,8 @@ export function Header({ onToggleOracle, isOracleOpen, onToggleSidebar, isSideba
             <polyline points="2 17 12 22 22 17"></polyline>
             <polyline points="2 12 12 17 22 12"></polyline>
           </svg>
-          <span>Frontier</span>
-          <span className="brand-badge">Edge</span>
+          <span>Xenon</span>
+          <span className="brand-badge">Xe</span>
         </div>
       </div>
 
@@ -240,7 +240,7 @@ export function Header({ onToggleOracle, isOracleOpen, onToggleSidebar, isSideba
             className={`btn ${isOracleOpen ? 'btn-primary' : 'btn-secondary'}`}
             onClick={onToggleOracle}
             style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-            title="Toggle Frontier Oracle"
+            title="Toggle Xenon Oracle"
           >
             <Sparkles size={15} style={{ color: isOracleOpen ? 'inherit' : 'var(--google-blue)' }} />
             <span className="oracle-btn-label">Oracle</span>

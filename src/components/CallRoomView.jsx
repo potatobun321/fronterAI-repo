@@ -3,7 +3,7 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Modal } from './Modal';
-import { Video, Calendar, Plus, ExternalLink, Radio, Trash2, Square } from 'lucide-react';
+import { Video, Calendar, Plus, ExternalLink, Radio, Trash2, Square, Pencil } from 'lucide-react';
 
 export function CallRoomView() {
   const { isHost } = useAuth();
@@ -11,6 +11,9 @@ export function CallRoomView() {
   const [meetingData, setMeetingData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [editingSlot, setEditingSlot] = useState(null);
+  const [slotNameInput, setSlotNameInput] = useState('');
+  const [slotUrlInput, setSlotUrlInput] = useState('');
 
   // Form
   const [title, setTitle] = useState('');
@@ -91,6 +94,22 @@ export function CallRoomView() {
     }
   };
 
+  const handleSaveSlot = async (e) => {
+    e.preventDefault();
+    if (!editingSlot) return;
+    try {
+      await api.updateMeetingSlot(editingSlot.id, {
+        slot_name: slotNameInput.trim(),
+        raw_url: slotUrlInput.trim() || undefined
+      });
+      toast.success(`Updated ${editingSlot.slot_code}`);
+      setEditingSlot(null);
+      await loadMeetings();
+    } catch (err) {
+      toast.error(`Failed to update slot: ${err.message}`);
+    }
+  };
+
   const slots = meetingData?.slots || [];
   const events = meetingData?.events || [];
   const liveEvent = events.find(ev => Number(ev.is_live) === 1);
@@ -151,8 +170,18 @@ export function CallRoomView() {
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', background: 'var(--bg-surface-elevated)', padding: '2px 8px', borderRadius: 'var(--radius-sm)' }}>
                       {slot.slot_code}
                     </span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--google-green)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--google-green)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--google-green)' }}></span> Active
+                      {isHost && (
+                        <button
+                          className="btn-icon"
+                          style={{ width: '26px', height: '26px' }}
+                          title={`Edit ${slot.slot_name}`}
+                          onClick={() => { setEditingSlot(slot); setSlotNameInput(slot.slot_name); setSlotUrlInput(''); }}
+                        >
+                          <Pencil size={12} />
+                        </button>
+                      )}
                     </span>
                   </div>
 
@@ -338,6 +367,40 @@ export function CallRoomView() {
                 placeholder="e.g. 11:00 AM IST"
               />
             </div>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        isOpen={!!editingSlot}
+        onClose={() => setEditingSlot(null)}
+        title={`Edit ${editingSlot?.slot_code || 'Meeting Bridge'}`}
+        footer={
+          <>
+            <button type="button" className="btn btn-secondary" onClick={() => setEditingSlot(null)}>Cancel</button>
+            <button type="submit" form="editSlotForm" className="btn btn-primary">Save Bridge</button>
+          </>
+        }
+      >
+        <form id="editSlotForm" onSubmit={handleSaveSlot} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div className="form-group">
+            <label>Bridge Name</label>
+            <input
+              className="form-input"
+              value={slotNameInput}
+              onChange={e => setSlotNameInput(e.target.value)}
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label>New Bridge URL (leave blank to keep current)</label>
+            <input
+              type="url"
+              className="form-input"
+              value={slotUrlInput}
+              onChange={e => setSlotUrlInput(e.target.value)}
+              placeholder="https://meet.google.com/xxx-xxxx-xxx"
+            />
           </div>
         </form>
       </Modal>

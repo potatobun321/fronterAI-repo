@@ -1,5 +1,5 @@
 // ==============================================================================
-// FRONTIER AI — CLOUDFLARE WORKER & PAGES FUNCTIONS EDGE ROUTER
+// XENON — CLOUDFLARE WORKER & PAGES FUNCTIONS EDGE ROUTER
 // Google OAuth 2.0 + Groq (Llama 3.3 70B) + Cloudflare D1 Serverless SQLite
 // ==============================================================================
 
@@ -63,6 +63,16 @@ function getVotingSecret(env, url) {
     return 'local-dev-voting-secret-32-chars-minimum';
   }
   throw new Error('VOTING_SECRET is required in Cloudflare Worker production environment.');
+}
+
+function getOAuthSecret(env, url) {
+  const secret = (env && (env.JWT_SECRET || env.GOOGLE_CLIENT_SECRET)) ? String(env.JWT_SECRET || env.GOOGLE_CLIENT_SECRET).trim() : '';
+  if (secret) return secret;
+  const isLocal = url && (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
+  if (isLocal) {
+    return 'local-dev-oauth-secret-32-chars-minimum';
+  }
+  throw new Error('GOOGLE_CLIENT_SECRET (or JWT_SECRET) is required in production.');
 }
 
 function isHostMember(member, env = {}) {
@@ -457,10 +467,10 @@ export async function onRequest(context) {
     // 2. GOOGLE OAUTH 2.0 FLOW
     // --------------------------------------------------------------------------
     if (pathname === '/api/auth/google' && method === 'GET') {
-      const clientId = env.GOOGLE_CLIENT_ID || '33531224866-tci0079quk7mfgh7plhtgnpj6lfa96ou.apps.googleusercontent.com';
+      const clientId = env.GOOGLE_CLIENT_ID;
       if (!clientId) return jsonResponse({ error: 'GOOGLE_CLIENT_ID not configured on Cloudflare' }, 500);
 
-      const secret = env.JWT_SECRET || env.GOOGLE_CLIENT_SECRET || 'frontier-oauth-secret-key-salt-32ch';
+      const secret = getOAuthSecret(env, url);
       const state = await createSignedState(secret);
       const redirectUri = `${url.origin}/api/auth/google/callback`;
       const googleUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
@@ -489,7 +499,7 @@ export async function onRequest(context) {
 
       if (oauthError) return new Response(null, { status: 302, headers: { 'Location': `${url.origin}/?error=${encodeURIComponent(oauthError)}` } });
 
-      const secret = env.JWT_SECRET || env.GOOGLE_CLIENT_SECRET || 'frontier-oauth-secret-key-salt-32ch';
+      const secret = getOAuthSecret(env, url);
       const isStateValid = (await verifySignedState(secret, state)) || (cookies.oauth_state && state === cookies.oauth_state);
 
       if (!state || !isStateValid) {
@@ -497,7 +507,10 @@ export async function onRequest(context) {
         return new Response(null, { status: 302, headers: { 'Location': `${url.origin}/?error=csrf_state_mismatch` } });
       }
 
-      const clientId = env.GOOGLE_CLIENT_ID || '33531224866-tci0079quk7mfgh7plhtgnpj6lfa96ou.apps.googleusercontent.com';
+      const clientId = env.GOOGLE_CLIENT_ID;
+      if (!clientId || !env.GOOGLE_CLIENT_SECRET) {
+        return new Response(null, { status: 302, headers: { 'Location': `${url.origin}/?error=oauth_not_configured` } });
+      }
 
       // Exchange code for token
       const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -997,6 +1010,35 @@ export async function onRequest(context) {
     if (pathname === '/api/meetings/slots' && method === 'GET') {
       const res = await env.DB.prepare('SELECT id, slot_code, slot_name, last_used_at FROM meeting_slots ORDER BY id ASC').all();
       return jsonResponse({ slots: res.results || [] });
+    }
+
+    if (pathname.startsWith('/api/meetings/slots/') && method === 'PATCH') {
+      const member = await getAuthMember(request, env);
+      if (!member || !isHostMember(member, env)) {
+        return jsonResponse({ error: 'Forbidden: Only the Team Host can edit meeting bridges.' }, 403);
+      }
+      const slotId = parseInt(pathname.split('/')[4], 10);
+      if (!slotId) return jsonResponse({ error: 'Invalid slot ID' }, 400);
+
+      const { slot_name, raw_url } = await request.json().catch(() => ({}));
+      if (raw_url !== undefined) {
+        const cleanUrl = String(raw_url).trim();
+        if (!cleanUrl.startsWith('https://')) {
+          return jsonResponse({ error: 'Meeting bridge URL must start with https://' }, 400);
+        }
+      }
+
+      const existing = await env.DB.prepare('SELECT * FROM meeting_slots WHERE id = ?').bind(slotId).first();
+      if (!existing) return jsonResponse({ error: 'Meeting slot not found' }, 404);
+
+      const nextName = slot_name !== undefined ? String(slot_name).trim() || existing.slot_name : existing.slot_name;
+      const nextUrl = raw_url !== undefined ? String(raw_url).trim() : existing.raw_url;
+
+      await env.DB.prepare('UPDATE meeting_slots SET slot_name = ?, raw_url = ? WHERE id = ?')
+        .bind(nextName, nextUrl, slotId)
+        .run();
+      await logAudit(env, member.handle, 'MEETING_SLOT_UPDATED', `slot_${slotId}`, `Updated bridge ${existing.slot_code} (${nextName})`);
+      return jsonResponse({ success: true, slot: { id: slotId, slot_code: existing.slot_code, slot_name: nextName } });
     }
 
     if (pathname.startsWith('/api/meetings/join-slot/') && method === 'GET') {
@@ -1692,7 +1734,7 @@ export async function onRequest(context) {
         success: true,
         filename: `snapshot_${Date.now()}.json`,
         snapshot: {
-          platform: 'Frontier AI Cloudflare Edition',
+          platform: 'Xenon Cloudflare Edition',
           timestamp: new Date().toISOString(),
           exported_by: member.handle,
           tables: {
@@ -1711,7 +1753,7 @@ export async function onRequest(context) {
     // --------------------------------------------------------------------------
     if (pathname === '/api/ai/chat' && method === 'POST') {
       const member = await getAuthMember(request, env);
-      if (!member) return jsonResponse({ error: 'Unauthorized: Please sign in to use Frontier Oracle.' }, 401);
+      if (!member) return jsonResponse({ error: 'Unauthorized: Please sign in to use Xenon Oracle.' }, 401);
       const memberId = member.id;
       const { message, threadId } = await request.json();
       if (!message || !message.trim()) return jsonResponse({ error: 'Message cannot be empty' }, 400);
@@ -1790,7 +1832,7 @@ export async function onRequest(context) {
       }
 
       const isHost = isHostMember(member, env);
-      const systemPrompt = `You are Frontier Oracle, the elite technical intelligence and operational execution agent for the Frontier AI workspace.
+      const systemPrompt = `You are Xenon Oracle, the elite technical intelligence and operational execution agent for the Xenon workspace.
 You have real-time situational awareness and direct action-dispatching authority over workspace state.
 
 ACTIVE SESSION IDENTITY:
@@ -1807,8 +1849,8 @@ ABSOLUTE OPERATIONAL DIRECTIVES (NEVER VIOLATE):
    - Speak in clear, friendly, human English like an engineer on Slack. Do NOT sound like a corporate robot or legal document.
    - NEVER overuse asterisks (**) or bullet points. Use bolding very sparingly, only for names or urgent status words. Avoid comma-stuffed sentences.
    - NEVER mention SQL, databases, tables, schemas, or injection to the user. Talk about the project naturally as tasks, teammates, and meetings.
-2. NEVER say "I cannot send messages on your behalf" or "I cannot contact team members". Frontier AI has a built-in Peer Tasklet / micro-ping delivery engine! When asked to message, ping, remind, or follow up with a member, immediately summarize the ping in 1-2 friendly sentences and emit a \`\`\`action\`\`\` block for SEND_TASKLET.
-3. NEVER say "I cannot collect votes" or "I can only draft a proposal for you to track manually". Frontier AI has a built-in cryptographic blind-signature voting engine! When asked to host, start, or launch a vote, immediately summarize the round in 1-2 friendly sentences and emit a \`\`\`action\`\`\` block for START_VOTING (if user is Host).
+2. NEVER say "I cannot send messages on your behalf" or "I cannot contact team members". Xenon has a built-in Peer Tasklet / micro-ping delivery engine! When asked to message, ping, remind, or follow up with a member, immediately summarize the ping in 1-2 friendly sentences and emit a \`\`\`action\`\`\` block for SEND_TASKLET.
+3. NEVER say "I cannot collect votes" or "I can only draft a proposal for you to track manually". Xenon has a built-in cryptographic blind-signature voting engine! When asked to host, start, or launch a vote, immediately summarize the round in 1-2 friendly sentences and emit a \`\`\`action\`\`\` block for START_VOTING (if user is Host).
 4. NEVER produce passive text-only message drafts for actions that the platform can perform directly. Always emit the structured \`\`\`action\`\`\` block so the user can execute it with one click!
 5. RBAC Enforcement: Only the Team Host can emit CREATE_TASK for others, DELETE_TASK, SCHEDULE_MEETING, START_VOTING, or TRANSFER_HOST. If a non-host requests these, politely reject: "❌ Permission Denied: Only team hosts can execute this action."
 
@@ -1940,10 +1982,10 @@ When performing or preparing an operational action, output a concise friendly su
             (tasks.results || []).map(t => `• ${t.title} — ${t.status} (${t.track})`).join('\n');
         } else if (lower.includes('meet') || lower.includes('call') || lower.includes('bridge')) {
           const slots = await env.DB.prepare('SELECT slot_name, slot_code FROM meeting_slots LIMIT 6').all();
-          modelReply = `Frontier AI has ${(slots.results || []).length} Google Meet bridges:\n` +
+          modelReply = `Xenon has ${(slots.results || []).length} Google Meet bridges:\n` +
             (slots.results || []).map(s => `• ${s.slot_name} (${s.slot_code})`).join('\n');
         } else {
-          modelReply = `### 🚀 Frontier Workspace Executive Brief\n\n**Operational Intelligence Active:**\nI have reviewed the current workspace state. Ask me for a **daily standup**, current tasks, meeting schedules, or issue an operational action command directly in this chat.`;
+          modelReply = `### Xenon Workspace Executive Brief\n\n**Operational Intelligence Active:**\nI have reviewed the current workspace state. Ask me for a **daily standup**, current tasks, meeting schedules, or issue an operational action command directly in this chat.`;
         }
       }
 
@@ -2050,7 +2092,7 @@ When performing or preparing an operational action, output a concise friendly su
 
         const track = ['frontend', 'backend', 'lead'].includes(payload.track) ? payload.track : 'backend';
         const deadline = payload.deadline || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
-        const desc = payload.description || 'Created via Frontier Oracle';
+        const desc = payload.description || 'Created via Xenon Oracle';
 
         const ins = await env.DB.prepare(
           "INSERT INTO tasks (title, description, track, assignee_id, status, deadline, deliverable_url, version, updated_at) VALUES (?, ?, ?, ?, 'TODO', ?, NULL, 1, datetime('now'))"
@@ -2102,7 +2144,7 @@ When performing or preparing an operational action, output a concise friendly su
 
         const ins = await env.DB.prepare(
           "INSERT INTO calendar_events (title, description, event_type, event_date, time_label, target_audience, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)"
-        ).bind(title, 'Scheduled via Frontier Oracle', eventType, eventDate, timeLabel, targetAudience, member.id).run();
+        ).bind(title, 'Scheduled via Xenon Oracle', eventType, eventDate, timeLabel, targetAudience, member.id).run();
 
         const newId = ins.meta?.last_row_id;
         await logAudit(env, member.handle || member.name, 'AI_ACTION_SCHEDULE_MEETING', `calendar_${newId}`, `Scheduled meeting "${title}"`, 'SUCCESS');
@@ -2258,7 +2300,7 @@ When performing or preparing an operational action, output a concise friendly su
       // RAISE_TICKET (All Members — 2-Man Rule)
       if (actionType === 'RAISE_TICKET') {
         const title = (payload.title || '').trim();
-        const reason = (payload.reason || 'Requested via Frontier Oracle').trim();
+        const reason = (payload.reason || 'Requested via Xenon Oracle').trim();
         const scope = (payload.scope || 'workspace_elevated').trim();
         const duration = Math.max(5, Math.min(240, parseInt(payload.duration_minutes || 30, 10)));
         if (!title) return jsonResponse({ error: 'Ticket title is required.' }, 400);

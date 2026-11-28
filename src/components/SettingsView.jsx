@@ -104,7 +104,7 @@ export function SettingsView() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `frontier_backup_${Date.now()}.json`;
+        a.download = `xenon_backup_${Date.now()}.json`;
         a.click();
         URL.revokeObjectURL(url);
         toast.success('Snapshot exported');

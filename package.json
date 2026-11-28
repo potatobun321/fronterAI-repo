@@ -1,7 +1,7 @@
 {
-  "name": "frontier-ai-platform",
+  "name": "xenon-platform",
   "version": "1.0.0",
-  "description": "Frontier AI Internal Platform - Cloudflare Workers & D1 Edition with Blind Anonymous Voting, Task Tracking, and 2-Man Governance",
+  "description": "Xenon Internal Platform - Cloudflare Workers & D1 Edition with Blind Anonymous Voting, Task Tracking, and 2-Man Governance",
   "main": "worker.js",
   "type": "module",
   "scripts": {

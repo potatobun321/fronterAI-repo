@@ -7,7 +7,7 @@ import { Sparkles, X, Send, Play, CheckCircle, RotateCcw, Trash2 } from 'lucide-
 const WELCOME_MSG = {
   id: 1,
   role: 'model',
-  text: "Hello. I am Frontier Oracle. I can summarize sprint health, prepare task actions, and look up team directory details. How can I assist you?"
+  text: "Hello. I am Xenon Oracle. I can summarize sprint health, prepare task actions, and look up team directory details. How can I assist you?"
 };
 
 function parseActionFromContent(text) {
@@ -151,7 +151,7 @@ export function OraclePanel({ isOpen, onClose }) {
       <div className="oracle-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Sparkles size={18} style={{ color: 'var(--google-blue)' }} />
-          <span style={{ fontWeight: 600, fontSize: '0.98rem' }}>Frontier Oracle</span>
+          <span style={{ fontWeight: 600, fontSize: '0.98rem' }}>Xenon Oracle</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <button className="btn-icon" onClick={handleNewChat} title="New conversation" aria-label="New conversation">

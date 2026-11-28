@@ -131,7 +131,7 @@ export function AgenticWorkspace({ onOpenClassicView }) {
     const trimmed = (promptText || '').trim();
     if (!trimmed || loading) return;
     if (!currentUser) {
-      toast.info('Please sign in first to use Frontier Oracle.');
+      toast.info('Please sign in first to use Xenon Oracle.');
       return;
     }
 
@@ -295,7 +295,7 @@ export function AgenticWorkspace({ onOpenClassicView }) {
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 600, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <span>Frontier Command</span>
+                <span>Xenon Command</span>
                 {currentUser && (
                   <span className={`track-tag ${isHost ? 'track-lead' : 'track-backend'}`} style={{ fontSize: '0.62rem' }}>
                     {isHost ? 'TEAM LEAD' : 'CONTRIBUTOR'}
@@ -465,7 +465,7 @@ export function AgenticWorkspace({ onOpenClassicView }) {
           <input
             type="text"
             className="form-input"
-            placeholder={currentUser ? 'Ask Frontier Oracle or type / for commands...' : 'Sign in to command Frontier Oracle...'}
+            placeholder={currentUser ? 'Ask Xenon Oracle or type / for commands...' : 'Sign in to command Xenon Oracle...'}
             value={input}
             onChange={handleInputChange}
             style={{ flex: 1, borderRadius: 'var(--radius-pill)', padding: '9px 16px' }}

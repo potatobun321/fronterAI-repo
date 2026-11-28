@@ -53,7 +53,15 @@ function AppContent() {
     };
     loadCount();
     window.addEventListener('frontier:workspace-updated', loadCount);
-    return () => window.removeEventListener('frontier:workspace-updated', loadCount);
+    const pollId = currentUser ? setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        window.dispatchEvent(new CustomEvent('frontier:workspace-updated'));
+      }
+    }, 25000) : null;
+    return () => {
+      window.removeEventListener('frontier:workspace-updated', loadCount);
+      if (pollId) clearInterval(pollId);
+    };
   }, [currentUser?.id]);
 
   useEffect(() => {
