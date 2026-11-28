@@ -68,7 +68,7 @@ export const api = {
   claimBallotToken: (sessionId) => request('/api/voting/token', { method: 'POST', body: JSON.stringify({ session_id: sessionId }) }),
   castBallot: (ballot) => request('/api/voting/cast', { method: 'POST', body: JSON.stringify(ballot) }),
   closeVotingSession: (sessionId) => request('/api/voting/close', { method: 'POST', body: JSON.stringify({ session_id: sessionId }) }),
-  reopenVotingSession: (sessionId) => request('/api/voting/reopen', { method: 'POST', body: JSON.stringify({ session_id: sessionId }) }),
+  deleteVotingSession: (sessionId) => request(`/api/voting/${sessionId}`, { method: 'DELETE' }),
 
   // Members & Governance
   getMembers: () => request('/api/members'),

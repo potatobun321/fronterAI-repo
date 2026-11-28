@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ConfirmModal } from './ConfirmModal';
 import { Modal } from './Modal';
-import { Vote, Key, CheckCircle, Shield, Lock, RotateCcw, Plus, Star, Users, CheckSquare, Award } from 'lucide-react';
+import { Vote, Key, CheckCircle, Shield, Lock, Plus, Star, Users, CheckSquare, Trash2, History } from 'lucide-react';
 
 export function VotingView() {
   const { currentUser, isHost, members } = useAuth();
@@ -16,6 +16,7 @@ export function VotingView() {
   const [tokenMsg, setTokenMsg] = useState('');
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
   const [isLaunchModalOpen, setIsLaunchModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   // Launch Form State
   // Mode: 'TEAM_MEMBER' (peer performance) or 'ACCOMPLISHED_TASK' (review completed task)
@@ -134,14 +135,15 @@ export function VotingView() {
     }
   };
 
-  const handleReopenSession = async () => {
-    if (!sessionData?.session?.id) return;
+  const handleDeleteHistory = async () => {
+    if (!deleteTarget) return;
     try {
-      await api.reopenVotingSession(sessionData.session.id);
-      toast.success('Review round reopened.');
+      await api.deleteVotingSession(deleteTarget.id);
+      toast.info(`Removed "${deleteTarget.title}" from history`);
+      setDeleteTarget(null);
       await loadVoting();
     } catch (err) {
-      toast.error(`Error reopening session: ${err.message}`);
+      toast.error(`Failed to delete session: ${err.message}`);
     }
   };
 
@@ -213,6 +215,7 @@ export function VotingView() {
   };
 
   const session = sessionData?.session;
+  const history = sessionData?.history || [];
   const candidates = sessionData?.candidates || [];
   const tally = sessionData?.tally || [];
 
@@ -222,25 +225,21 @@ export function VotingView() {
       <div className="view-header">
         <div className="view-title-group">
           <h2>Peer Review & Consensus</h2>
-          <p>Anonymous peer feedback on engineer performance and completed project deliverables</p>
+          <p>One-time anonymous review rounds with compact history</p>
         </div>
 
         {/* Lead-Only Action Controls */}
         {isHost && (
           <div className="view-actions">
-            <button className="btn btn-primary" onClick={() => setIsLaunchModalOpen(true)}>
-              <Plus size={16} /> Host Review Round
-            </button>
-
-            {session?.status === 'ACTIVE' && (
-              <button className="btn btn-secondary" onClick={() => setIsCloseModalOpen(true)}>
-                <Lock size={16} /> Close & Reveal Tally
+            {!session && (
+              <button className="btn btn-primary" onClick={() => setIsLaunchModalOpen(true)}>
+                <Plus size={16} /> Host Review Round
               </button>
             )}
 
-            {session?.status === 'CLOSED' && (
-              <button className="btn btn-secondary" onClick={handleReopenSession}>
-                <RotateCcw size={16} /> Reopen Round
+            {session?.status === 'ACTIVE' && (
+              <button className="btn btn-secondary" onClick={() => setIsCloseModalOpen(true)}>
+                <Lock size={16} /> Close & Finalize Round
               </button>
             )}
           </div>
@@ -515,6 +514,76 @@ export function VotingView() {
       )}
 
       {/* ======================================================================
+         PAST REVIEW SESSIONS (SINGLE-ROW COMPACT HISTORY)
+         ====================================================================== */}
+      {!loading && history.length > 0 && (
+        <div>
+          <h3 style={{ fontSize: '0.96rem', fontWeight: 600, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <History size={16} style={{ color: 'var(--google-blue)' }} /> Past Review Sessions ({history.length})
+          </h3>
+          <div className="card table-scroll-wrap" style={{ padding: 0 }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Round</th>
+                  <th>Hosted</th>
+                  <th>Result</th>
+                  <th>Who Voted</th>
+                  {isHost && <th style={{ width: '60px' }}></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {history.map(item => (
+                  <tr key={item.id}>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>{item.title}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        {item.session_type === 'PROJECT_QUALITY' ? 'Deliverable Review' : 'Peer Performance'}
+                      </div>
+                    </td>
+                    <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                      {item.created_at ? new Date(item.created_at).toLocaleDateString() : '—'}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, color: 'var(--google-amber)' }}>
+                        <Star size={13} fill="currentColor" />
+                        <span>{Number(item.avgRating || 0).toFixed(1)} / 5.0</span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>
+                          ({item.totalBallots} {item.totalBallots === 1 ? 'ballot' : 'ballots'})
+                        </span>
+                      </div>
+                      {item.topResult && (
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                          Top: {item.topResult}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                      {item.participants && item.participants.length > 0
+                        ? `${item.participants.map(p => p.name).join(', ')} (${item.participants.length}/${item.total_eligible || item.participants.length})`
+                        : `0 / ${item.total_eligible || 0} voted`}
+                    </td>
+                    {isHost && (
+                      <td>
+                        <button
+                          className="btn-icon"
+                          style={{ width: '30px', height: '30px', color: 'var(--google-red)' }}
+                          title="Delete from history"
+                          onClick={() => setDeleteTarget(item)}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================================
          HOST LAUNCH MODAL (TEAM LEAD EXCLUSIVE)
          ====================================================================== */}
       {isHost && (
@@ -633,9 +702,21 @@ export function VotingView() {
           isOpen={isCloseModalOpen}
           onClose={() => setIsCloseModalOpen(false)}
           onConfirm={executeCloseSession}
-          title="Close Review Round"
-          message="Closing this round will finalize all votes and calculate public tallies. This action cannot be undone."
-          confirmText="Close & Reveal"
+          title="Close & Finalize Review Round"
+          message="Closing this round will finalize all votes and move it to Past Review Sessions. Closed rounds cannot be reopened."
+          confirmText="Close & Finalize"
+          isDestructive={true}
+        />
+      )}
+
+      {isHost && (
+        <ConfirmModal
+          isOpen={!!deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={handleDeleteHistory}
+          title="Delete Voting Session"
+          message={`Permanently delete "${deleteTarget?.title}" and its ballots from history to free database space?`}
+          confirmText="Delete"
           isDestructive={true}
         />
       )}

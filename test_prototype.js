@@ -392,6 +392,35 @@ async function runTests() {
     assert(formattedTasklet.status === 200, `Formatted SEND_TASKLET failed: ${formattedTasklet.status}`);
     console.log(`[PASS] 14. AI SEND_TASKLET with formatted "Name (@handle)" resolved cleanly.`);
 
+    // 15. Voting Finality (No Reopen), Compact History, & Delete
+    const closeVoteRes = await testFetch(`${base}/api/voting/close`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId })
+    });
+    assert(closeVoteRes.status === 200, `Voting close failed: ${closeVoteRes.status}`);
+
+    const reopenRes = await testFetch(`${base}/api/voting/reopen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId })
+    });
+    assert(reopenRes.status === 410, `Expected 410 for reopen, got ${reopenRes.status}`);
+
+    const afterClose = await testFetch(`${base}/api/voting/current`);
+    const afterCloseData = await afterClose.json();
+    assert(afterCloseData.session === null, 'Expected session to be null after close');
+    assert(Array.isArray(afterCloseData.history) && afterCloseData.history.length === 1, 'Expected 1 closed session in history');
+    assert(afterCloseData.history[0].participants.length === 1, 'Expected 1 participant in history row');
+
+    const delVoteRes = await testFetch(`${base}/api/voting/${sessionId}`, { method: 'DELETE' });
+    assert(delVoteRes.status === 200, `Voting delete failed: ${delVoteRes.status}`);
+
+    const afterDel = await testFetch(`${base}/api/voting/current`);
+    const afterDelData = await afterDel.json();
+    assert(afterDelData.history.length === 0, 'Expected history to be empty after delete');
+    console.log(`[PASS] 15. Voting Finality (410 on reopen), Compact History Row, & Delete verified.`);
+
     console.log('\n🎉 ALL CLOUDFLARE WORKER + D1 VERIFICATION CHECKS PASSED!');
   } catch (err) {
     console.error('\n❌ TEST FAILED:', err);

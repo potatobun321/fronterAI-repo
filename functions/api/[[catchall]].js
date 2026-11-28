@@ -1331,17 +1331,53 @@ export async function onRequest(context) {
         session = await env.DB.prepare('SELECT * FROM voting_sessions WHERE id = ?').bind(requestedSessionId).first();
       }
       if (!session) {
-        // Priority 1: Check for active session
+        // Only return an ACTIVE session as the current live booth
         session = await env.DB.prepare("SELECT * FROM voting_sessions WHERE status = 'ACTIVE' ORDER BY id DESC LIMIT 1").first();
       }
 
-      // If no active session, check for latest closed session so final standings can be reviewed
-      let closedSession = null;
-      if (!session) {
-        closedSession = await env.DB.prepare("SELECT * FROM voting_sessions WHERE status = 'CLOSED' ORDER BY id DESC LIMIT 1").first();
-      }
+      const activeTarget = session || null;
 
-      const activeTarget = session || closedSession;
+      // Build compact history of closed sessions (single-row summaries)
+      const closedRowsRes = await env.DB.prepare(
+        "SELECT id, title, description, session_type, total_eligible, created_at, closed_at FROM voting_sessions WHERE status = 'CLOSED' ORDER BY id DESC LIMIT 20"
+      ).all();
+      const closedRows = closedRowsRes?.results || [];
+      const history = [];
+      for (const cs of closedRows) {
+        const ballotStats = await env.DB.prepare(
+          'SELECT COUNT(*) as count, AVG(rating) as avg_rating FROM ballots WHERE session_id = ?'
+        ).bind(cs.id).first();
+        const partRes = await env.DB.prepare(`
+          SELECT m.id, m.name, m.handle
+          FROM voting_eligibility ve
+          JOIN members m ON ve.member_id = m.id
+          WHERE ve.session_id = ?
+          ORDER BY ve.token_issued_at ASC
+        `).bind(cs.id).all();
+        const topOpt = await env.DB.prepare(`
+          SELECT vo.label, AVG(b.rating) as avg_rating, COUNT(b.id) as cnt
+          FROM ballots b
+          JOIN voting_options vo ON b.option_id = vo.id
+          WHERE b.session_id = ?
+          GROUP BY vo.id, vo.label
+          ORDER BY avg_rating DESC, cnt DESC
+          LIMIT 1
+        `).bind(cs.id).first();
+
+        history.push({
+          id: cs.id,
+          title: cs.title,
+          description: cs.description,
+          session_type: cs.session_type,
+          created_at: cs.created_at,
+          closed_at: cs.closed_at,
+          total_eligible: cs.total_eligible || 0,
+          totalBallots: ballotStats?.count || 0,
+          avgRating: ballotStats?.count ? Math.round((ballotStats.avg_rating || 0) * 10) / 10 : 0,
+          topResult: topOpt?.label ? `${topOpt.label} (${(Math.round((topOpt.avg_rating || 0) * 10) / 10).toFixed(1)}★)` : null,
+          participants: (partRes?.results || []).map(p => ({ id: p.id, name: p.name, handle: p.handle }))
+        });
+      }
 
       // Allowlisted members
       const membersRes = await env.DB.prepare('SELECT id, name, role, team_track, email, handle FROM members WHERE is_allowed = 1 ORDER BY id ASC').all();
@@ -1351,8 +1387,9 @@ export async function onRequest(context) {
         return jsonResponse({
           active: false,
           hasActiveSession: false,
-          hasClosedSession: false,
+          hasClosedSession: history.length > 0,
           session: null,
+          history,
           candidates: allMembers,
           options: allMembers,
           totalBallots: 0,
@@ -1512,8 +1549,9 @@ export async function onRequest(context) {
       return jsonResponse({
         active: activeTarget.status === 'ACTIVE',
         hasActiveSession: activeTarget.status === 'ACTIVE',
-        hasClosedSession: isClosed,
+        hasClosedSession: isClosed || history.length > 0,
         session: activeTarget,
+        history,
         targetMember,
         candidates,
         options: candidates,
@@ -1688,21 +1726,29 @@ export async function onRequest(context) {
     }
 
     if (pathname === '/api/voting/reopen' && method === 'POST') {
-      const member = await getAuthMember(request, env);
-      const isHost = isHostMember(member, env);
-      if (!isHost) return jsonResponse({ error: 'Unauthorized: Only Team Lead (Admin) can reopen a review round' }, 403);
-      const body = await request.json().catch(() => ({}));
-      let targetId = body.session_id;
-      if (!targetId) {
-        const closed = await env.DB.prepare("SELECT id FROM voting_sessions WHERE status = 'CLOSED' ORDER BY id DESC LIMIT 1").first();
-        targetId = closed?.id;
-      }
-      if (!targetId) return jsonResponse({ error: 'No closed review session found to reopen' }, 400);
+      return jsonResponse({
+        error: 'Closed voting sessions are final and cannot be reopened. Launch a new review round instead.'
+      }, 410);
+    }
 
-      await env.DB.prepare("UPDATE voting_sessions SET status = 'ARCHIVED' WHERE status = 'ACTIVE' AND id != ?").bind(targetId).run();
-      await env.DB.prepare("UPDATE voting_sessions SET status = 'ACTIVE', closed_at = NULL WHERE id = ?").bind(targetId).run();
-      await logAudit(env, member.handle, 'REOPEN_VOTING', 'voting', `Reopened review session #${targetId}`);
-      return jsonResponse({ success: true, session_id: targetId });
+    if (pathname.match(/^\/api\/voting\/\d+$/) && method === 'DELETE') {
+      const member = await getAuthMember(request, env);
+      if (!isHostMember(member, env)) {
+        return jsonResponse({ error: 'Unauthorized: Only Team Lead can delete voting history.' }, 403);
+      }
+      const targetId = parseInt(pathname.split('/')[3], 10);
+      const existing = await env.DB.prepare('SELECT id, title FROM voting_sessions WHERE id = ?').bind(targetId).first();
+      if (!existing) {
+        return jsonResponse({ error: 'Voting session not found' }, 404);
+      }
+      await env.DB.batch([
+        env.DB.prepare('DELETE FROM ballots WHERE session_id = ?').bind(targetId),
+        env.DB.prepare('DELETE FROM voting_options WHERE session_id = ?').bind(targetId),
+        env.DB.prepare('DELETE FROM voting_eligibility WHERE session_id = ?').bind(targetId),
+        env.DB.prepare('DELETE FROM voting_sessions WHERE id = ?').bind(targetId)
+      ]);
+      await logAudit(env, member.handle, 'DELETE_VOTING', `voting_session_${targetId}`, `Purged voting session #${targetId} ("${existing.title}") from history`);
+      return jsonResponse({ success: true, message: 'Voting session removed from history.' });
     }
 
     // --------------------------------------------------------------------------
