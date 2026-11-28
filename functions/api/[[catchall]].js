@@ -41,6 +41,30 @@ async function sha256(message) {
   return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+function constantTimeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const enc = new TextEncoder();
+  const bufA = enc.encode(a);
+  const bufB = enc.encode(b);
+  if (bufA.length !== bufB.length) return false;
+  let diff = 0;
+  for (let i = 0; i < bufA.length; i++) {
+    diff |= bufA[i] ^ bufB[i];
+  }
+  return diff === 0;
+}
+
+function getVotingSecret(env, url) {
+  if (env && env.VOTING_SECRET && String(env.VOTING_SECRET).trim()) {
+    return String(env.VOTING_SECRET).trim();
+  }
+  const isLocal = url && (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
+  if (isLocal) {
+    return 'local-dev-voting-secret-32-chars-minimum';
+  }
+  throw new Error('VOTING_SECRET is required in Cloudflare Worker production environment.');
+}
+
 function isHostMember(member, env = {}) {
   if (!member) return false;
   return Number(member.is_host) === 1;
@@ -50,15 +74,179 @@ let schemaInitialized = false;
 
 async function ensureSchema(env) {
   if (!env.DB || schemaInitialized) return;
+  const baseTables = [
+    `CREATE TABLE IF NOT EXISTS members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      github_numeric_id INTEGER,
+      handle TEXT NOT NULL,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL,
+      team_track TEXT NOT NULL,
+      email TEXT,
+      google_sub TEXT,
+      is_host INTEGER DEFAULT 0,
+      is_allowed INTEGER DEFAULT 1
+    )`,
+    `CREATE TABLE IF NOT EXISTS tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      track TEXT NOT NULL,
+      assignee_id INTEGER,
+      status TEXT NOT NULL DEFAULT 'TODO',
+      deadline TEXT,
+      deliverable_url TEXT,
+      deliverable_notes TEXT,
+      version INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (assignee_id) REFERENCES members (id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS meeting_slots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slot_code TEXT NOT NULL UNIQUE,
+      slot_name TEXT NOT NULL,
+      raw_url TEXT NOT NULL,
+      last_used_at TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS calendar_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      event_type TEXT NOT NULL,
+      event_date TEXT NOT NULL,
+      time_label TEXT NOT NULL,
+      target_audience TEXT NOT NULL DEFAULT 'ALL',
+      assignee_id INTEGER,
+      meeting_slot_id INTEGER,
+      meeting_link TEXT,
+      is_live INTEGER NOT NULL DEFAULT 0,
+      created_by INTEGER NOT NULL,
+      FOREIGN KEY (assignee_id) REFERENCES members (id),
+      FOREIGN KEY (meeting_slot_id) REFERENCES meeting_slots (id),
+      FOREIGN KEY (created_by) REFERENCES members (id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS voting_sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      session_type TEXT NOT NULL DEFAULT 'PERFORMANCE',
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      total_eligible INTEGER DEFAULT 8,
+      created_by INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      closed_at TEXT,
+      target_member_id INTEGER
+    )`,
+    `CREATE TABLE IF NOT EXISTS voting_options (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id INTEGER NOT NULL,
+      candidate_member_id INTEGER,
+      label TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS voting_eligibility (
+      session_id INTEGER NOT NULL,
+      member_id INTEGER NOT NULL,
+      token_issued_at TEXT NOT NULL,
+      PRIMARY KEY (session_id, member_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS used_tokens (
+      token_hash TEXT PRIMARY KEY,
+      used_at TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS ballots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id INTEGER NOT NULL,
+      option_id INTEGER NOT NULL,
+      rating INTEGER DEFAULT 5,
+      candidate_member_id INTEGER
+    )`,
+    `CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY,
+      member_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS access_tickets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      requester_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      scope TEXT NOT NULL,
+      duration_minutes INTEGER NOT NULL DEFAULT 30,
+      status TEXT NOT NULL DEFAULT 'PENDING_APPROVAL',
+      approver_id INTEGER,
+      created_at TEXT NOT NULL,
+      resolved_at TEXT,
+      expires_at TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS audit_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp TEXT NOT NULL,
+      actor_handle TEXT NOT NULL,
+      action TEXT NOT NULL,
+      target TEXT NOT NULL,
+      details TEXT,
+      status TEXT NOT NULL,
+      prev_hash TEXT,
+      entry_hash TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS tasklets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sender_id INTEGER NOT NULL,
+      receiver_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'PENDING',
+      type TEXT DEFAULT 'TASKLET',
+      category TEXT DEFAULT 'GENERAL',
+      is_anonymous INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS ai_threads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      member_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS ai_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      thread_id INTEGER NOT NULL,
+      sender_role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS member_memories (
+      member_id INTEGER PRIMARY KEY,
+      memory_data TEXT NOT NULL DEFAULT '{}',
+      updated_at TEXT NOT NULL
+    )`
+  ];
+
+  for (const ddl of baseTables) {
+    try {
+      await env.DB.prepare(ddl).run();
+    } catch (e) { }
+  }
+
   try {
-    await env.DB.prepare(`
-      CREATE TABLE IF NOT EXISTS sessions (
-        token TEXT PRIMARY KEY,
-        member_id INTEGER NOT NULL,
-        created_at TEXT NOT NULL,
-        expires_at TEXT NOT NULL
-      )
-    `).run();
+    const slotCount = await env.DB.prepare('SELECT COUNT(*) as count FROM meeting_slots').first();
+    if (!slotCount || slotCount.count === 0) {
+      const defaultSlots = [
+        [1, 'SLOT-01', 'Meeting Bridge 1', 'https://meet.google.com/kuw-amav-swf'],
+        [2, 'SLOT-02', 'Meeting Bridge 2', 'https://meet.google.com/mzs-atxy-yja'],
+        [3, 'SLOT-03', 'Meeting Bridge 3', 'https://meet.google.com/sdj-njyx-bwm'],
+        [4, 'SLOT-04', 'Meeting Bridge 4', 'https://meet.google.com/zky-swdi-phk'],
+        [5, 'SLOT-05', 'Meeting Bridge 5', 'https://meet.google.com/nvr-adyb-wmb'],
+        [6, 'SLOT-06', 'Meeting Bridge 6', 'https://meet.google.com/sae-wkpe-rth']
+      ];
+      for (const [id, code, name, rawUrl] of defaultSlots) {
+        await env.DB.prepare(
+          'INSERT OR IGNORE INTO meeting_slots (id, slot_code, slot_name, raw_url, last_used_at) VALUES (?, ?, ?, ?, NULL)'
+        ).bind(id, code, name, rawUrl).run();
+      }
+    }
   } catch (e) { }
 
   try {
@@ -283,9 +471,10 @@ export async function onRequest(context) {
         `&access_type=offline` +
         `&state=${state}`;
 
+      const secureFlag = url.protocol === 'https:' ? '; Secure' : '';
       const headers = new Headers();
       headers.set('Location', googleUrl);
-      headers.append('Set-Cookie', `oauth_state=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=900`);
+      headers.append('Set-Cookie', `oauth_state=${state}; Path=/; HttpOnly${secureFlag}; SameSite=Lax; Max-Age=900`);
 
       return new Response(null, {
         status: 302,
@@ -415,10 +604,11 @@ export async function onRequest(context) {
       await logAudit(env, member.handle, 'OAUTH_LOGIN_SUCCESS', 'auth',
         `Google OAuth login: ${member.name} (${googleEmail}). Role: ${member.is_host ? 'AUTHORATOR' : 'PARTICIPANT'}.`, 'SUCCESS');
 
+      const secureFlag = url.protocol === 'https:' ? '; Secure' : '';
       const headers = new Headers();
-      headers.set('Location', `${url.origin}/?auth=oauth_success&sid=${sessionToken}`);
-      headers.append('Set-Cookie', `frontier_session=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`);
-      headers.append('Set-Cookie', `oauth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`);
+      headers.set('Location', `${url.origin}/?auth=oauth_success`);
+      headers.append('Set-Cookie', `frontier_session=${sessionToken}; Path=/; HttpOnly${secureFlag}; SameSite=Lax; Max-Age=2592000`);
+      headers.append('Set-Cookie', `oauth_state=; Path=/; HttpOnly${secureFlag}; SameSite=Lax; Max-Age=0`);
 
       return new Response(null, {
         status: 302,
@@ -433,9 +623,10 @@ export async function onRequest(context) {
       if (token) {
         await env.DB.prepare('DELETE FROM sessions WHERE token = ?').bind(token).run();
       }
+      const secureFlag = url.protocol === 'https:' ? '; Secure' : '';
       const headers = new Headers();
       headers.set('Content-Type', 'application/json');
-      headers.append('Set-Cookie', 'frontier_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
+      headers.append('Set-Cookie', `frontier_session=; Path=/; HttpOnly${secureFlag}; SameSite=Lax; Max-Age=0`);
       return new Response(JSON.stringify({ success: true }), {
         status: 200,
         headers
@@ -1203,21 +1394,14 @@ export async function onRequest(context) {
       const sessionId = session.id;
       const alreadyClaimed = await env.DB.prepare('SELECT * FROM voting_eligibility WHERE session_id = ? AND member_id = ?').bind(sessionId, member.id).first();
       if (alreadyClaimed) {
-        // If 0 ballots are recorded in this session (e.g. voter recovered from prior failure), re-issue valid token
-        const ballotsCount = await env.DB.prepare('SELECT COUNT(*) as count FROM ballots WHERE session_id = ?').bind(sessionId).first();
-        if (ballotsCount?.count === 0) {
-          const nonce = crypto.randomUUID();
-          const message = `${sessionId}:${nonce}`;
-          const signature = await hmacSha256(env.VOTING_SECRET || 'secret-salt-key-minimum-32-chars', message);
-          return jsonResponse({ token: `${message}:${signature}` });
-        }
         return jsonResponse({ error: 'You have already claimed a ballot token for this session.' }, 400);
       }
 
+      const votingSecret = getVotingSecret(env, url);
       await env.DB.prepare("INSERT INTO voting_eligibility (session_id, member_id, token_issued_at) VALUES (?, ?, datetime('now'))").bind(sessionId, member.id).run();
       const nonce = crypto.randomUUID();
       const message = `${sessionId}:${nonce}`;
-      const signature = await hmacSha256(env.VOTING_SECRET || 'secret-salt-key-minimum-32-chars', message);
+      const signature = await hmacSha256(votingSecret, message);
       await logAudit(env, member.handle, 'VOTE_CLAIM_TOKEN', 'voting', `Blind token claimed for Session #${sessionId}`);
       return jsonResponse({ token: `${message}:${signature}` });
     }
@@ -1235,8 +1419,9 @@ export async function onRequest(context) {
       if (parts.length !== 3) return jsonResponse({ error: 'Malformed ballot token' }, 400);
       const [tokenSessionId, nonce, providedSig] = parts;
       if (parseInt(tokenSessionId, 10) !== parseInt(session_id, 10)) return jsonResponse({ error: 'Token for wrong session' }, 400);
-      const expectedSig = await hmacSha256(env.VOTING_SECRET || 'secret-salt-key-minimum-32-chars', `${tokenSessionId}:${nonce}`);
-      if (expectedSig !== providedSig) return jsonResponse({ error: 'Cryptographic signature invalid' }, 403);
+      const votingSecret = getVotingSecret(env, url);
+      const expectedSig = await hmacSha256(votingSecret, `${tokenSessionId}:${nonce}`);
+      if (!constantTimeEqual(expectedSig, providedSig)) return jsonResponse({ error: 'Cryptographic signature invalid' }, 403);
       const tokenHash = await sha256(token);
 
       const used = await env.DB.prepare('SELECT * FROM used_tokens WHERE token_hash = ?').bind(tokenHash).first();
@@ -1872,7 +2057,7 @@ When performing or preparing an operational action, output a concise friendly su
         ).bind(title, desc, track, assigneeId, deadline).run();
 
         const newId = ins.meta?.last_row_id;
-        await recordAudit(env, member.handle || member.name, 'AI_ACTION_CREATE_TASK', `task_${newId}`, `Created task "${title}"`, 'SUCCESS');
+        await logAudit(env, member.handle || member.name, 'AI_ACTION_CREATE_TASK', `task_${newId}`, `Created task "${title}"`, 'SUCCESS');
         return jsonResponse({ success: true, action: 'CREATE_TASK', message: `Task #${newId} ("${title}") created successfully.`, taskId: newId });
       }
 
@@ -1882,7 +2067,7 @@ When performing or preparing an operational action, output a concise friendly su
         const taskId = parseInt(payload.task_id, 10);
         if (!taskId) return jsonResponse({ error: 'Task ID is required.' }, 400);
         await env.DB.prepare('DELETE FROM tasks WHERE id = ?').bind(taskId).run();
-        await recordAudit(env, member.handle || member.name, 'AI_ACTION_DELETE_TASK', `task_${taskId}`, `Deleted task #${taskId}`, 'SUCCESS');
+        await logAudit(env, member.handle || member.name, 'AI_ACTION_DELETE_TASK', `task_${taskId}`, `Deleted task #${taskId}`, 'SUCCESS');
         return jsonResponse({ success: true, action: 'DELETE_TASK', message: `Task #${taskId} deleted successfully.` });
       }
 
@@ -1902,7 +2087,7 @@ When performing or preparing an operational action, output a concise friendly su
         if (!allowed.includes(newStatus)) return jsonResponse({ error: 'Invalid status.' }, 400);
 
         await env.DB.prepare("UPDATE tasks SET status = ?, deliverable_url = COALESCE(?, deliverable_url), updated_at = datetime('now') WHERE id = ?").bind(newStatus, payload.deliverable_url || null, taskId).run();
-        await recordAudit(env, member.handle || member.name, 'AI_ACTION_UPDATE_TASK', `task_${taskId}`, `Updated status to ${newStatus}`, 'SUCCESS');
+        await logAudit(env, member.handle || member.name, 'AI_ACTION_UPDATE_TASK', `task_${taskId}`, `Updated status to ${newStatus}`, 'SUCCESS');
         return jsonResponse({ success: true, action: 'UPDATE_TASK_STATUS', message: `Task #${taskId} status updated to ${newStatus}.` });
       }
 
@@ -1920,7 +2105,7 @@ When performing or preparing an operational action, output a concise friendly su
         ).bind(title, 'Scheduled via Frontier Oracle', eventType, eventDate, timeLabel, targetAudience, member.id).run();
 
         const newId = ins.meta?.last_row_id;
-        await recordAudit(env, member.handle || member.name, 'AI_ACTION_SCHEDULE_MEETING', `calendar_${newId}`, `Scheduled meeting "${title}"`, 'SUCCESS');
+        await logAudit(env, member.handle || member.name, 'AI_ACTION_SCHEDULE_MEETING', `calendar_${newId}`, `Scheduled meeting "${title}"`, 'SUCCESS');
         return jsonResponse({ success: true, action: 'SCHEDULE_MEETING', message: `Meeting "${title}" scheduled for ${eventDate} at ${timeLabel}.`, eventId: newId });
       }
 
@@ -1930,7 +2115,7 @@ When performing or preparing an operational action, output a concise friendly su
         const ticketId = parseInt(payload.ticket_id, 10);
         if (!ticketId) return jsonResponse({ error: 'Ticket ID required.' }, 400);
         await env.DB.prepare("UPDATE access_tickets SET status = 'APPROVED', approver_id = ?, resolved_at = datetime('now') WHERE id = ?").bind(member.id, ticketId).run();
-        await recordAudit(env, member.handle || member.name, 'AI_ACTION_SIGN_OFF_TICKET', `ticket_${ticketId}`, `Signed off ticket #${ticketId}`, 'SUCCESS');
+        await logAudit(env, member.handle || member.name, 'AI_ACTION_SIGN_OFF_TICKET', `ticket_${ticketId}`, `Signed off ticket #${ticketId}`, 'SUCCESS');
         return jsonResponse({ success: true, action: 'SIGN_OFF_TICKET', message: `Ticket #${ticketId} signed off successfully.` });
       }
 
@@ -1940,7 +2125,7 @@ When performing or preparing an operational action, output a concise friendly su
         const ticketId = parseInt(payload.ticket_id, 10);
         if (!ticketId) return jsonResponse({ error: 'Ticket ID required.' }, 400);
         await env.DB.prepare("UPDATE access_tickets SET status = 'DENIED', approver_id = ?, resolved_at = datetime('now') WHERE id = ?").bind(member.id, ticketId).run();
-        await recordAudit(env, member.handle || member.name, 'AI_ACTION_DENY_TICKET', `ticket_${ticketId}`, `Denied ticket #${ticketId}`, 'SUCCESS');
+        await logAudit(env, member.handle || member.name, 'AI_ACTION_DENY_TICKET', `ticket_${ticketId}`, `Denied ticket #${ticketId}`, 'SUCCESS');
         return jsonResponse({ success: true, action: 'DENY_TICKET', message: `Ticket #${ticketId} has been denied.` });
       }
 
@@ -1964,7 +2149,7 @@ When performing or preparing an operational action, output a concise friendly su
           await env.DB.prepare('INSERT INTO voting_options (session_id, candidate_member_id, label) VALUES (?, ?, ?)').bind(newId, m.id, m.name).run();
         }
 
-        await recordAudit(env, member.handle || member.name, 'AI_ACTION_START_VOTING', `voting_session_${newId}`, `Host launched voting session #${newId}`, 'SUCCESS');
+        await logAudit(env, member.handle || member.name, 'AI_ACTION_START_VOTING', `voting_session_${newId}`, `Host launched voting session #${newId}`, 'SUCCESS');
         return jsonResponse({ success: true, action: 'START_VOTING', message: `Voting session #${newId} ("${title}") is now ACTIVE.`, sessionId: newId });
       }
 

@@ -45,15 +45,9 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const sid = params.get('sid');
     const authParam = params.get('auth');
     const errorParam = params.get('error');
     const emailParam = params.get('email');
-
-    if (sid) {
-      localStorage.setItem('frontier_session', sid);
-      params.delete('sid');
-    }
 
     if (authParam === 'pending_approval') {
       setAuthNotice({
@@ -82,7 +76,7 @@ export function AuthProvider({ children }) {
       params.delete('error');
     }
 
-    if (sid || authParam || errorParam) {
+    if (authParam || errorParam) {
       const remaining = params.toString();
       const nextUrl = window.location.pathname + (remaining ? `?${remaining}` : '') + window.location.hash;
       window.history.replaceState({}, '', nextUrl);
@@ -118,7 +112,6 @@ export function AuthProvider({ children }) {
     try {
       await api.logout();
     } catch (_) {}
-    localStorage.removeItem('frontier_session');
     setCurrentUser(null);
   };
 

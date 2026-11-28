@@ -1,29 +1,16 @@
 /**
  * Unified API Client for Frontier AI
- * Handles cookie + Bearer authentication automatically
+ * Uses HttpOnly session cookies automatically via credentials: 'include'
  */
-
-function getAuthHeader() {
-  const token = localStorage.getItem('frontier_session');
-  return token ? { 'Authorization': `Bearer ${token}` } : {};
-}
 
 async function request(url, options = {}) {
   options.headers = {
     'Content-Type': 'application/json',
-    ...getAuthHeader(),
     ...(options.headers || {})
   };
   options.credentials = 'include';
 
   const res = await fetch(url, options);
-
-  // If Set-Cookie contains session token, save to localStorage as well
-  const setCookie = res.headers.get('set-cookie');
-  if (setCookie) {
-    const match = setCookie.match(/frontier_session=([^;]+)/);
-    if (match) localStorage.setItem('frontier_session', match[1]);
-  }
 
   const contentType = res.headers.get('content-type') || '';
   let data = null;
