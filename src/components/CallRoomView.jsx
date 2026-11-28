@@ -115,7 +115,7 @@ export function CallRoomView() {
       ) : (
         <>
           {liveEvent && (
-            <div className="card" style={{ border: '1px solid var(--google-green)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '16px' }}>
+            <div className="card" style={{ border: '1px solid var(--google-green)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--google-green)' }}></span>
                 <div>
@@ -144,7 +144,7 @@ export function CallRoomView() {
               <Radio size={16} style={{ color: 'var(--google-green)' }} /> Meeting Bridges
             </h3>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
+            <div className="bridges-grid">
               {slots.map(slot => (
                 <div key={slot.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

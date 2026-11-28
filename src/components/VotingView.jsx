@@ -227,7 +227,7 @@ export function VotingView() {
 
         {/* Lead-Only Action Controls */}
         {isHost && (
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div className="view-actions">
             <button className="btn btn-primary" onClick={() => setIsLaunchModalOpen(true)}>
               <Plus size={16} /> Host Review Round
             </button>
@@ -473,7 +473,7 @@ export function VotingView() {
               {session.status === 'CLOSED' ? 'Final Consensus Tally' : 'Session Progress & Status'}
             </h3>
 
-            <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+            <div className="form-grid-2" style={{ marginBottom: '16px' }}>
               <div style={{ background: 'var(--bg-surface-elevated)', padding: '14px 18px', borderRadius: 'var(--radius-md)', flex: 1 }}>
                 <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Ballots Deposited</div>
                 <div style={{ fontSize: '1.5rem', fontWeight: 700, marginTop: '4px', color: 'var(--google-blue)' }}>
@@ -526,7 +526,7 @@ export function VotingView() {
           <form onSubmit={handleLaunchSession} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div className="form-group">
               <label>Review Target Category *</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '4px' }}>
+              <div className="form-grid-2" style={{ marginTop: '4px' }}>
                 <button
                   type="button"
                   className={`btn ${launchMode === 'TEAM_MEMBER' ? 'btn-primary' : 'btn-secondary'}`}

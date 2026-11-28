@@ -133,7 +133,7 @@ export function SettingsView() {
           <p>Access approvals, system audit events, and data snapshots</p>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="view-actions">
           {currentUser && (
             <button className="btn btn-primary" onClick={() => setIsTicketModalOpen(true)}>
               <Plus size={15} /> Raise Access Ticket
@@ -160,7 +160,7 @@ export function SettingsView() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {tickets.map(ticket => (
-                  <div key={ticket.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-sm)' }}>
+                  <div key={ticket.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', padding: '12px 14px', background: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-sm)' }}>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{ticket.title}</div>
                       <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
@@ -175,7 +175,7 @@ export function SettingsView() {
                           Awaiting peer sign-off
                         </span>
                       ) : (
-                        <div style={{ display: 'flex', gap: '8px' }}>
+                        <div className="view-actions">
                           <button className="btn btn-primary" style={{ padding: '4px 10px', fontSize: '0.76rem' }} onClick={() => handleSignOffTicket(ticket.id)}>
                             <Check size={12} /> Sign Off
                           </button>
@@ -204,23 +204,23 @@ export function SettingsView() {
           {/* Tamper-Evident Audit Trail (Host Only) */}
           {isHost && (
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ padding: '16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+              <h3 style={{ fontSize: '0.96rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <FileText size={16} style={{ color: 'var(--google-blue)' }} /> Tamper-Evident Audit Events
               </h3>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div className="view-actions" style={{ flex: '1 1 auto', justifyContent: 'flex-end' }}>
                 <button className="btn btn-secondary" style={{ padding: '5px 10px', fontSize: '0.76rem' }} onClick={handleVerifyChain}>
                   Verify Hash Chain
                 </button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-surface-elevated)', padding: '6px 12px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--border-default)' }}>
-                <Search size={14} style={{ color: 'var(--text-muted)' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-surface-elevated)', padding: '6px 12px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--border-default)', flex: '1 1 150px', maxWidth: '220px' }}>
+                <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                 <input
                   type="text"
                   placeholder="Filter audit events..."
                   value={searchAudit}
                   onChange={e => setSearchAudit(e.target.value)}
-                  style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.82rem', width: '180px' }}
+                  style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.82rem', width: '100%', minWidth: 0 }}
                 />
                 </div>
               </div>

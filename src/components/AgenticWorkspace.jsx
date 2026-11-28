@@ -333,12 +333,29 @@ export function AgenticWorkspace({ onOpenClassicView }) {
               }}>
                 <Sparkles size={22} />
               </div>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '6px' }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '6px' }}>
                 What should we get done?
               </h3>
               <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
                 {WELCOME_MSG.text}
               </p>
+
+              <div style={{
+                display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '8px',
+                marginTop: '14px'
+              }}>
+                <span style={{ fontSize: '0.74rem', padding: '4px 10px', borderRadius: 'var(--radius-pill)', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
+                  <strong style={{ color: 'var(--google-blue)' }}>{pulse.allTasksCount}</strong> active sprint tasks
+                </span>
+                <span style={{ fontSize: '0.74rem', padding: '4px 10px', borderRadius: 'var(--radius-pill)', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
+                  <strong style={{ color: 'var(--google-green)' }}>{pulse.pendingTasklets.length}</strong> inbox tasklets
+                </span>
+                {pulse.voting && (
+                  <span style={{ fontSize: '0.74rem', padding: '4px 10px', borderRadius: 'var(--radius-pill)', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
+                    Vote: <strong style={{ color: 'var(--google-purple)' }}>{pulse.voting.status}</strong>
+                  </span>
+                )}
+              </div>
 
               <div className="agentic-starter-grid">
                 {starterCards.map(card => (

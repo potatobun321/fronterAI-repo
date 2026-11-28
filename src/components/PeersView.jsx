@@ -208,7 +208,7 @@ export function PeersView() {
           <p>Teammate directory, roles, and peer tasklets</p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div className="view-actions">
           <button className="btn btn-secondary" onClick={() => setIsTaskletModalOpen(true)}>
             <Send size={15} /> Send Peer Tasklet
           </button>
@@ -238,12 +238,12 @@ export function PeersView() {
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {pendingMembers.map(m => (
-                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-sm)' }}>
-                    <div>
+                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', padding: '10px 14px', background: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-sm)' }}>
+                    <div style={{ minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{m.name}</div>
-                      <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>{m.email || `@${m.handle}`}</div>
+                      <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', overflowWrap: 'anywhere' }}>{m.email || `@${m.handle}`}</div>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                       <select
                         className="form-select"
                         style={{ padding: '4px 8px', fontSize: '0.76rem', width: 'auto' }}
@@ -268,24 +268,23 @@ export function PeersView() {
 
           {/* Active Members Grid */}
           <div>
-            <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px' }}>Authorized Team Members</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
-              {members.map(m => (
-                <div key={m.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.96rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span>{m.name}</span>
+            <h3 style={{ fontSize: '0.96rem', fontWeight: 600, marginBottom: '12px' }}>Authorized Team Members ({members.length})</h3>
+            <div className="members-grid">
+              {members.map(m => {
+                const trackKey = m.is_host === 1 ? 'lead' : ((m.team_track === 'lead' ? 'backend' : m.team_track) || 'backend');
+                return (
+                <div key={m.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.94rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {m.name}
                       </div>
-                      <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>{m.email || `@${m.handle}`}</div>
+                      <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', overflowWrap: 'anywhere' }}>{m.email || `@${m.handle}`}</div>
                     </div>
-                    {m.is_host === 1 ? (
-                      <span className="track-tag track-lead">LEAD</span>
-                    ) : (
-                      <span className={`track-tag track-${(m.team_track === 'lead' ? 'backend' : m.team_track) || 'backend'}`}>
-                        {(m.team_track === 'lead' ? 'backend' : m.team_track) || 'dev'}
-                      </span>
-                    )}
+                    <span className="track-dot-label">
+                      <span className={`track-dot ${trackKey}`}></span>
+                      {trackKey}
+                    </span>
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
@@ -316,7 +315,8 @@ export function PeersView() {
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

@@ -127,12 +127,15 @@ button, input, select, textarea {
   display: flex;
   flex-direction: column;
   height: 100dvh;
+  width: 100%;
+  max-width: 100vw;
   overflow: hidden;
 }
 
 .main-body {
   display: flex;
   flex: 1;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
   position: relative;
@@ -143,7 +146,8 @@ button, input, select, textarea {
   min-width: 0;
   min-height: 0;
   display: flex;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: hidden;
 }
 
 .app-header {
@@ -424,11 +428,13 @@ button, input, select, textarea {
 
 .view-container {
   flex: 1;
+  min-width: 0;
+  overflow-x: hidden;
   overflow-y: auto;
-  padding: 24px 28px;
+  padding: 22px 26px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 }
 
 .view-header {
@@ -436,8 +442,49 @@ button, input, select, textarea {
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 14px;
+  gap: 12px;
 }
+
+.view-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.members-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 12px;
+}
+
+.bridges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.track-dot-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.track-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.track-dot.lead { background: var(--google-amber); }
+.track-dot.backend { background: var(--google-green); }
+.track-dot.frontend { background: var(--google-blue); }
 
 .view-title-group h2 {
   font-size: 1.35rem;
@@ -584,9 +631,9 @@ button, input, select, textarea {
 
 .kanban-board {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 .kanban-col {
@@ -595,7 +642,8 @@ button, input, select, textarea {
   border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
-  max-height: calc(100dvh - 190px);
+  min-height: 240px;
+  max-height: calc(100dvh - 210px);
 }
 
 .kanban-col-header {
@@ -686,6 +734,9 @@ button, input, select, textarea {
   padding: 0;
   overflow: hidden;
   min-height: 0;
+  background:
+    radial-gradient(600px 260px at 50% 0%, rgba(138, 180, 248, 0.06), transparent 70%),
+    var(--bg-surface);
 }
 
 .agentic-chat-header {
@@ -1064,11 +1115,15 @@ button, input, select, textarea {
 }
 
 @media (max-width: 1024px) {
+  .kanban-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .agentic-layout {
     display: flex;
     flex-direction: column;
-    padding: 12px;
-    gap: 10px;
+    padding: 10px 12px;
+    gap: 8px;
   }
 
   .mobile-pulse-strip {
@@ -1127,14 +1182,48 @@ button, input, select, textarea {
   }
 
   .view-container {
-    padding: 14px 12px calc(24px + env(safe-area-inset-bottom, 0px));
-    gap: 14px;
+    padding: 12px 12px calc(20px + env(safe-area-inset-bottom, 0px));
+    gap: 12px;
   }
 
+  .view-title-group h2 {
+    font-size: 1.12rem;
+  }
+
+  .view-title-group p {
+    font-size: 0.76rem;
+  }
+
+  .card {
+    padding: 14px;
+    border-radius: var(--radius-md);
+  }
+
+  .btn {
+    padding: 7px 12px;
+    font-size: 0.78rem;
+  }
+
+  .kanban-board {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .kanban-col {
+    min-height: 0;
+    max-height: none;
+  }
+
+  .members-grid,
+  .bridges-grid,
   .responsive-grid-2,
   .form-grid-2,
   .agentic-starter-grid {
     grid-template-columns: 1fr;
+  }
+
+  .agentic-empty-state {
+    padding: 12px 6px;
   }
 
   .oracle-drawer {
