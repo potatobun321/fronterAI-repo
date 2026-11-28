@@ -1,19 +1,18 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Kanban, Video, Vote, Users, Settings, ShieldCheck } from 'lucide-react';
+import { Sparkles, Kanban, Video, Vote, Users, Settings } from 'lucide-react';
 
 export function Sidebar({ currentView, onChangeView, taskCount = 0, isCollapsed = false }) {
   const { currentUser, isHost } = useAuth();
 
   const navItems = [
+    { id: 'command', label: 'Command', icon: Sparkles },
     { id: 'tasks', label: 'Tasks', icon: Kanban, badge: taskCount },
     { id: 'callroom', label: 'Call Room', icon: Video },
     { id: 'voting', label: 'Peer Review', icon: Vote },
     { id: 'peers', label: 'Team & Peers', icon: Users },
-    { id: 'settings', label: isHost ? 'Governance & Logs' : 'Governance', icon: Settings }
+    { id: 'settings', label: isHost ? 'Governance' : 'Audit & Access', icon: Settings }
   ];
-
-  const visibleNav = navItems.filter(item => !item.hostOnly || isHost);
 
   return (
     <aside className={`app-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
@@ -22,7 +21,7 @@ export function Sidebar({ currentView, onChangeView, taskCount = 0, isCollapsed 
       </div>
 
       <nav className="nav-group">
-        {visibleNav.map(item => {
+        {navItems.map(item => {
           const Icon = item.icon;
           const isActive = currentView === item.id;
           return (
@@ -32,7 +31,7 @@ export function Sidebar({ currentView, onChangeView, taskCount = 0, isCollapsed 
               onClick={() => onChangeView(item.id)}
               title={isCollapsed ? item.label : undefined}
             >
-              <Icon size={18} />
+              <Icon size={17} />
               {!isCollapsed && <span className="nav-label">{item.label}</span>}
               {Boolean(item.badge) && (
                 <span className={`nav-badge ${isCollapsed ? 'collapsed-badge' : ''}`}>{item.badge}</span>
@@ -42,13 +41,12 @@ export function Sidebar({ currentView, onChangeView, taskCount = 0, isCollapsed 
         })}
       </nav>
 
-      {/* User Profile Card at Sidebar Bottom */}
       <div className="sidebar-user-card" title={currentUser ? `${currentUser.name} (${currentUser.role})` : 'Not signed in'}>
         <div className="sidebar-avatar-wrap">
           <div className="user-avatar">
             {(currentUser?.name || currentUser?.handle || 'U').charAt(0).toUpperCase()}
           </div>
-          <span className="user-status-dot" style={{ backgroundColor: currentUser ? '#81c995' : '#9aa0a6' }}></span>
+          <span className="user-status-dot" style={{ backgroundColor: currentUser ? 'var(--google-green)' : 'var(--text-muted)' }}></span>
         </div>
 
         {!isCollapsed && (

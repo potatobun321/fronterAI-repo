@@ -181,7 +181,7 @@ export function CallRoomView() {
               <Calendar size={16} style={{ color: 'var(--google-blue)' }} /> Scheduled Sync Events
             </h3>
 
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="card table-scroll-wrap" style={{ padding: 0 }}>
               <table className="data-table">
                 <thead>
                   <tr>
@@ -296,7 +296,7 @@ export function CallRoomView() {
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="form-grid-2">
             <div className="form-group">
               <label>Event Type</label>
               <select className="form-select" value={eventType} onChange={e => setEventType(e.target.value)}>
@@ -317,7 +317,7 @@ export function CallRoomView() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="form-grid-2">
             <div className="form-group">
               <label>Date *</label>
               <input

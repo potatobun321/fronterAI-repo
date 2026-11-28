@@ -226,6 +226,7 @@ export function SettingsView() {
               </div>
             </div>
 
+            <div className="table-scroll-wrap">
             <table className="data-table">
               <thead>
                 <tr>
@@ -266,6 +267,7 @@ export function SettingsView() {
               </tbody>
             </table>
             </div>
+            </div>
           )}
         </>
       )}
@@ -292,7 +294,7 @@ export function SettingsView() {
               required
             />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+          <div className="form-grid-2">
             <div className="form-group">
               <label>Privilege Scope *</label>
               <input

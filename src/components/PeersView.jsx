@@ -326,7 +326,7 @@ export function PeersView() {
               <Clock size={16} style={{ color: 'var(--google-blue)' }} /> Peer Tasklets
             </h3>
 
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="card table-scroll-wrap" style={{ padding: 0 }}>
               <table className="data-table">
                 <thead>
                   <tr>
@@ -414,7 +414,7 @@ export function PeersView() {
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="form-grid-2">
             <div className="form-group">
               <label>Full Name *</label>
               <input
@@ -437,7 +437,7 @@ export function PeersView() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="form-grid-2">
             <div className="form-group">
               <label>Role</label>
               <input
@@ -500,7 +500,7 @@ export function PeersView() {
             </select>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="form-grid-2">
             <div className="form-group">
               <label>Your New Role</label>
               <input

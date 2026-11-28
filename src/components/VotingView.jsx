@@ -266,7 +266,7 @@ export function VotingView() {
               </p>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="responsive-grid-2">
               {/* Option A: Review Team Members */}
               <div
                 className="card"
@@ -349,7 +349,7 @@ export function VotingView() {
         /* ======================================================================
            STATE 2: VOTING SESSION ACTIVE OR RECENTLY CLOSED
            ====================================================================== */
-        <div style={{ display: 'grid', gridTemplateColumns: session.status === 'ACTIVE' ? '1fr 1fr' : '1fr', gap: '20px' }}>
+        <div className={session.status === 'ACTIVE' ? 'responsive-grid-2' : ''} style={session.status === 'ACTIVE' ? undefined : { display: 'grid', gridTemplateColumns: '1fr', gap: '20px' }}>
           {/* Active Ballot Box (Visible to ALL approved members) */}
           {session.status === 'ACTIVE' && (
             <div className="card">

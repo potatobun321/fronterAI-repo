@@ -5,35 +5,43 @@ import { api } from './api';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { MobileBottomNav } from './components/MobileBottomNav';
+import { CommandPalette } from './components/CommandPalette';
 
+const AgenticWorkspace = lazy(() => import('./components/AgenticWorkspace').then(m => ({ default: m.AgenticWorkspace })));
 const TasksView = lazy(() => import('./components/TasksView').then(m => ({ default: m.TasksView })));
 const CallRoomView = lazy(() => import('./components/CallRoomView').then(m => ({ default: m.CallRoomView })));
 const VotingView = lazy(() => import('./components/VotingView').then(m => ({ default: m.VotingView })));
 const PeersView = lazy(() => import('./components/PeersView').then(m => ({ default: m.PeersView })));
 const SettingsView = lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
 const OraclePanel = lazy(() => import('./components/OraclePanel').then(m => ({ default: m.OraclePanel })));
-const AgenticWorkspace = lazy(() => import('./components/AgenticWorkspace').then(m => ({ default: m.AgenticWorkspace })));
 
 function AppContent() {
-  const { currentUser, authNotice, clearAuthNotice } = useAuth();
+  const { currentUser, isHost, theme, toggleTheme, authNotice, clearAuthNotice } = useAuth();
   const toast = useToast();
-  const [currentView, setCurrentView] = useState('tasks');
-  const [uiMode, setUiMode] = useState(() => localStorage.getItem('frontier_ui_mode') || 'agentic');
+  const [currentView, setCurrentView] = useState(() => localStorage.getItem('frontier_active_view') || 'command');
   const [isOracleOpen, setIsOracleOpen] = useState(false);
-
-  const handleChangeUiMode = (mode) => {
-    setUiMode(mode);
-    localStorage.setItem('frontier_ui_mode', mode);
-  };
-
-  const handleOpenClassicView = (viewId) => {
-    setCurrentView(viewId);
-    handleChangeUiMode('classic');
-  };
+  const [isCmdOpen, setIsCmdOpen] = useState(false);
   const [taskCount, setTaskCount] = useState(0);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     return localStorage.getItem('frontier_sidebar_collapsed') === 'true';
   });
+
+  const handleSelectView = (viewId) => {
+    setCurrentView(viewId);
+    localStorage.setItem('frontier_active_view', viewId);
+    if (viewId === 'command') setIsOracleOpen(false);
+  };
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCmdOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   useEffect(() => {
     const loadCount = async () => {
@@ -71,51 +79,52 @@ function AppContent() {
         isOracleOpen={isOracleOpen}
         onToggleSidebar={toggleSidebar}
         isSidebarCollapsed={isSidebarCollapsed}
-        uiMode={uiMode}
-        onChangeUiMode={handleChangeUiMode}
+        onOpenCommandPalette={() => setIsCmdOpen(true)}
+        currentView={currentView}
       />
 
-      {uiMode === 'agentic' ? (
-        <div className="main-body">
-          <Suspense fallback={<div style={{ padding: '40px', color: 'var(--text-muted)' }}>Loading Agentic Workspace...</div>}>
-            <AgenticWorkspace onOpenClassicView={handleOpenClassicView} />
-          </Suspense>
-        </div>
-      ) : (
-        <div className="main-body">
-          <Sidebar
-            currentView={currentView}
-            onChangeView={setCurrentView}
-            taskCount={taskCount}
-            isCollapsed={isSidebarCollapsed}
-          />
-
-          <main className="main-content-canvas" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-            <Suspense fallback={<div style={{ padding: '40px', color: 'var(--text-muted)' }}>Loading workspace...</div>}>
-              {currentView === 'tasks' && <TasksView />}
-              {currentView === 'callroom' && <CallRoomView />}
-              {currentView === 'voting' && <VotingView />}
-              {currentView === 'peers' && <PeersView />}
-              {currentView === 'settings' && <SettingsView />}
-            </Suspense>
-          </main>
-
-          <Suspense fallback={null}>
-            <OraclePanel
-              isOpen={isOracleOpen}
-              onClose={() => setIsOracleOpen(false)}
-            />
-          </Suspense>
-        </div>
-      )}
-
-      {uiMode === 'classic' && (
-        <MobileBottomNav
+      <div className="main-body">
+        <Sidebar
           currentView={currentView}
-          onChangeView={setCurrentView}
+          onChangeView={handleSelectView}
           taskCount={taskCount}
+          isCollapsed={isSidebarCollapsed}
         />
-      )}
+
+        <main className="main-content-canvas">
+          <Suspense fallback={<div style={{ padding: '32px', color: 'var(--text-muted)', fontSize: '0.88rem' }}>Loading workspace...</div>}>
+            {currentView === 'command' && <AgenticWorkspace onOpenClassicView={handleSelectView} />}
+            {currentView === 'tasks' && <TasksView />}
+            {currentView === 'callroom' && <CallRoomView />}
+            {currentView === 'voting' && <VotingView />}
+            {currentView === 'peers' && <PeersView />}
+            {currentView === 'settings' && <SettingsView />}
+          </Suspense>
+        </main>
+
+        <Suspense fallback={null}>
+          <OraclePanel
+            isOpen={isOracleOpen}
+            onClose={() => setIsOracleOpen(false)}
+          />
+        </Suspense>
+      </div>
+
+      <MobileBottomNav
+        currentView={currentView}
+        onChangeView={handleSelectView}
+        taskCount={taskCount}
+      />
+
+      <CommandPalette
+        isOpen={isCmdOpen}
+        onClose={() => setIsCmdOpen(false)}
+        onNavigate={handleSelectView}
+        onToggleTheme={toggleTheme}
+        onToggleOracle={() => setIsOracleOpen(prev => !prev)}
+        isHost={isHost}
+        theme={theme}
+      />
     </div>
   );
 }

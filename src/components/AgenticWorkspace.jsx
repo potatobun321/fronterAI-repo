@@ -4,13 +4,13 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import {
   Sparkles, Send, Play, CheckCircle, RotateCcw, Trash2,
-  Video, Kanban, Vote, Users, Shield, ArrowUpRight, Radio
+  Video, Kanban, Vote, Users, Shield, ArrowUpRight, Radio, Slash, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 const WELCOME_MSG = {
   id: 'welcome',
   role: 'model',
-  text: 'Welcome to Frontier Agentic Space. Ask me to summarize sprint health, dispatch tasklets or anonymous feedback, raise 2-man access tickets, or (if you are Team Lead) allot tasks, host votes, and broadcast live meeting pings.'
+  text: 'Ready to help with sprint status, peer tasklets, 2-man access tickets, and workspace actions.'
 };
 
 function parseActionFromContent(text) {
@@ -32,6 +32,8 @@ export function AgenticWorkspace({ onOpenClassicView }) {
   const [threadId, setThreadId] = useState(null);
   const [historyLoadedForUser, setHistoryLoadedForUser] = useState(null);
   const [executedActions, setExecutedActions] = useState({});
+  const [showSlashMenu, setShowSlashMenu] = useState(false);
+  const [showMobilePulse, setShowMobilePulse] = useState(false);
   const [pulse, setPulse] = useState({
     myTasks: [],
     allTasksCount: 0,
@@ -134,6 +136,7 @@ export function AgenticWorkspace({ onOpenClassicView }) {
     }
 
     setInput('');
+    setShowSlashMenu(false);
     setMessages(prev => [...prev, { id: Date.now(), role: 'user', text: trimmed }]);
     setLoading(true);
     try {
@@ -151,7 +154,7 @@ export function AgenticWorkspace({ onOpenClassicView }) {
         ]);
       }
     } catch (err) {
-      setMessages(prev => [...prev, { id: Date.now() + 1, role: 'model', text: `⚠️ Oracle Error: ${err.message}` }]);
+      setMessages(prev => [...prev, { id: Date.now() + 1, role: 'model', text: `Oracle Error: ${err.message}` }]);
     } finally {
       setLoading(false);
     }
@@ -188,132 +191,217 @@ export function AgenticWorkspace({ onOpenClassicView }) {
     }
   };
 
-  const memberChips = [
-    { label: 'Summarize my sprint', prompt: 'Summarize my active sprint tasks and deadlines' },
-    { label: 'Send a tasklet', prompt: 'Send a tasklet to @' },
-    { label: 'Send anonymous feedback', prompt: 'Send anonymous feedback kudos to @' },
-    { label: 'Raise 2-man ticket', prompt: 'Raise ticket: Temporary D1 migration access' },
-    { label: 'Update task status', prompt: 'Update task #1 to IN_PROGRESS' }
+  const slashCommands = [
+    { cmd: '/sprint', label: 'Summarize my sprint', desc: 'Active tasks, deadlines, and blockers', prompt: 'Summarize my active sprint tasks and deadlines', hostOnly: false },
+    { cmd: '/tasklet', label: 'Send a peer tasklet', desc: 'Ping a teammate with a quick micro-task', prompt: 'Send a tasklet to @', hostOnly: false },
+    { cmd: '/kudos', label: 'Send anonymous feedback', desc: 'Deliver private or kudos feedback', prompt: 'Send anonymous feedback kudos to @', hostOnly: false },
+    { cmd: '/ticket', label: 'Raise 2-man access ticket', desc: 'Request peer-approved elevation', prompt: 'Raise ticket: Temporary D1 migration access', hostOnly: false },
+    { cmd: '/allot', label: 'Allot sprint task', desc: 'Create and assign a new task', prompt: 'Create task: ', hostOnly: true },
+    { cmd: '/vote', label: 'Host peer review vote', desc: 'Launch an anonymous ballot round', prompt: 'Launch a peer performance voting session', hostOnly: true },
+    { cmd: '/sync', label: 'Schedule team sync', desc: 'Create a calendar event & slot', prompt: 'Schedule meeting: Sprint Alignment Sync', hostOnly: true }
+  ].filter(c => !c.hostOnly || isHost);
+
+  const starterCards = [
+    { title: 'Sprint Pulse', desc: 'Check my active tasks and upcoming deadlines', prompt: 'Summarize my active sprint tasks and deadlines' },
+    { title: 'Peer Tasklet', desc: 'Send a quick micro-task or ping to a teammate', prompt: 'Send a tasklet to @' },
+    { title: 'Team Roster', desc: 'See who is on backend, frontend, and lead tracks', prompt: 'Who is on the team and what are their roles?' },
+    isHost
+      ? { title: 'Allot Task', desc: 'Create and assign a sprint deliverable', prompt: 'Create task: ' }
+      : { title: '2-Man Ticket', desc: 'Raise a peer-approved access request', prompt: 'Raise ticket: Temporary D1 migration access' }
   ];
 
-  const hostChips = [
-    { label: 'Allot new task', prompt: 'Create task: ' },
-    { label: 'Host peer vote', prompt: 'Launch a peer performance voting session' },
-    { label: 'Close active vote', prompt: 'Close active voting session and reveal tally' },
-    { label: 'Schedule sync', prompt: 'Schedule meeting: Sprint Alignment Sync' },
-    { label: 'Go live on call', prompt: 'Go live on the latest scheduled meeting' }
-  ];
+  const isFreshWelcome = messages.length === 1 && messages[0].id === 'welcome';
+
+  const handleInputChange = (e) => {
+    const val = e.target.value;
+    setInput(val);
+    setShowSlashMenu(val.startsWith('/'));
+  };
+
+  const applySlashCommand = (cmdObj) => {
+    setShowSlashMenu(false);
+    if (cmdObj.prompt.endsWith('@') || cmdObj.prompt.endsWith(': ')) {
+      setInput(cmdObj.prompt);
+    } else {
+      sendPrompt(cmdObj.prompt);
+    }
+  };
 
   return (
-    <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '20px', padding: '20px 24px', overflow: 'hidden' }}>
-      {/* Left: AI-First Command & Conversation Canvas */}
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', minHeight: 0 }}>
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Sparkles size={18} style={{ color: 'var(--google-blue)' }} />
-            <div>
-              <div style={{ fontWeight: 600, fontSize: '0.98rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span>Frontier Agentic Workspace</span>
+    <div className="agentic-layout">
+      {/* Compact Mobile Pulse Strip (hidden on desktop > 1024px) */}
+      <div className="mobile-pulse-strip">
+        <button
+          className="btn btn-secondary"
+          style={{ padding: '5px 11px', fontSize: '0.74rem' }}
+          onClick={() => setShowMobilePulse(prev => !prev)}
+        >
+          <span>Pulse</span>
+          {showMobilePulse ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+        </button>
+
+        {pulse.liveEvent && (
+          <a
+            href={pulse.liveEvent.join_url || `/api/meetings/join/${pulse.liveEvent.id}`}
+            target="_blank"
+            rel="noreferrer"
+            className="btn btn-primary"
+            style={{ padding: '5px 11px', fontSize: '0.74rem', textDecoration: 'none', background: 'var(--google-green)', borderColor: 'var(--google-green)' }}
+          >
+            <Radio size={12} /> Live Call
+          </a>
+        )}
+
+        <button
+          className="btn btn-secondary"
+          style={{ padding: '5px 11px', fontSize: '0.74rem' }}
+          onClick={() => onOpenClassicView('tasks')}
+        >
+          <Kanban size={12} style={{ color: 'var(--google-blue)' }} />
+          Tasks ({pulse.myTasks.length}/{pulse.allTasksCount})
+        </button>
+
+        <button
+          className="btn btn-secondary"
+          style={{ padding: '5px 11px', fontSize: '0.74rem' }}
+          onClick={() => onOpenClassicView('peers')}
+        >
+          <Users size={12} style={{ color: 'var(--google-green)' }} />
+          Inbox ({pulse.pendingTasklets.length})
+        </button>
+
+        {pulse.voting && (
+          <button
+            className="btn btn-secondary"
+            style={{ padding: '5px 11px', fontSize: '0.74rem' }}
+            onClick={() => onOpenClassicView('voting')}
+          >
+            <Vote size={12} style={{ color: 'var(--google-purple)' }} />
+            Vote {pulse.voting.status}
+          </button>
+        )}
+      </div>
+
+      {/* Left: AI Command & Conversation Canvas */}
+      <div className="card agentic-chat-pane">
+        <div className="agentic-chat-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+            <div style={{
+              width: '34px', height: '34px', borderRadius: '10px',
+              background: 'var(--google-blue-container)', color: 'var(--google-blue)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+            }}>
+              <Sparkles size={17} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span>Frontier Command</span>
                 {currentUser && (
-                  <span className={`track-tag ${isHost ? 'track-lead' : 'track-backend'}`} style={{ fontSize: '0.66rem' }}>
+                  <span className={`track-tag ${isHost ? 'track-lead' : 'track-backend'}`} style={{ fontSize: '0.62rem' }}>
                     {isHost ? 'TEAM LEAD' : 'CONTRIBUTOR'}
                   </span>
                 )}
               </div>
-              <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {currentUser
-                  ? `Signed in as ${currentUser.name} • ${isHost ? 'Full administrative & workspace agency' : 'Member-scoped actions (tasklets, feedback, tickets, own tasks)'}`
+                  ? `Signed in as ${currentUser.name} • Type / for quick commands`
                   : 'Sign in to unlock personalized workspace actions'}
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '6px' }}>
+          <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
             <button className="btn-icon" onClick={handleNewChat} title="New conversation">
-              <RotateCcw size={15} />
+              <RotateCcw size={14} />
             </button>
             {currentUser && (
               <button className="btn-icon" onClick={handleClearHistory} title="Clear saved history" style={{ color: 'var(--google-red)' }}>
-                <Trash2 size={15} />
+                <Trash2 size={14} />
               </button>
             )}
           </div>
         </div>
 
-        {/* Role-Aware Quick Action Chips */}
-        <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', flexWrap: 'wrap', gap: '6px', background: 'var(--bg-surface-elevated)' }}>
-          {memberChips.map(c => (
-            <button
-              key={c.label}
-              className="btn btn-secondary"
-              style={{ padding: '4px 10px', fontSize: '0.74rem', borderRadius: 'var(--radius-pill)' }}
-              onClick={() => (c.prompt.endsWith('@') || c.prompt.endsWith(': ') ? setInput(c.prompt) : sendPrompt(c.prompt))}
-            >
-              {c.label}
-            </button>
-          ))}
-          {isHost && hostChips.map(c => (
-            <button
-              key={c.label}
-              className="btn btn-secondary"
-              style={{ padding: '4px 10px', fontSize: '0.74rem', borderRadius: 'var(--radius-pill)', borderColor: 'var(--google-amber)', color: 'var(--google-amber-text)' }}
-              onClick={() => (c.prompt.endsWith(': ') ? setInput(c.prompt) : sendPrompt(c.prompt))}
-            >
-              {c.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Chat Feed */}
-        <div className="oracle-chat-feed" style={{ flex: 1, padding: '18px' }}>
-          {messages.map(msg => (
-            <div
-              key={msg.id}
-              className={`chat-bubble ${msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-model'}`}
-              style={{ maxWidth: '82%' }}
-            >
-              <div style={{ whiteSpace: 'pre-wrap' }}>
-                {msg.text.replace(/```action[\s\S]*?```/g, '').trim()}
+        {/* Chat Feed or Clean Empty State */}
+        <div className="oracle-chat-feed">
+          {isFreshWelcome ? (
+            <div className="agentic-empty-state">
+              <div style={{
+                width: '44px', height: '44px', borderRadius: '14px', margin: '0 auto 12px',
+                background: 'var(--google-blue-container)', color: 'var(--google-blue)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <Sparkles size={22} />
               </div>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '6px' }}>
+                What should we get done?
+              </h3>
+              <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                {WELCOME_MSG.text}
+              </p>
 
-              {msg.action && (
-                <div className="action-card">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span className="track-tag track-frontend" style={{ fontSize: '0.68rem' }}>
-                      Action: {msg.action.action}
-                    </span>
-                    {executedActions[msg.id] && (
-                      <span style={{ fontSize: '0.74rem', color: 'var(--google-green)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <CheckCircle size={12} /> Executed
+              <div className="agentic-starter-grid">
+                {starterCards.map(card => (
+                  <button
+                    key={card.title}
+                    className="agentic-starter-card"
+                    onClick={() => (card.prompt.endsWith('@') || card.prompt.endsWith(': ') ? setInput(card.prompt) : sendPrompt(card.prompt))}
+                  >
+                    <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)' }}>{card.title}</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.35 }}>{card.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            messages.map(msg => (
+              <div
+                key={msg.id}
+                className={`chat-bubble ${msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-model'}`}
+              >
+                <div style={{ whiteSpace: 'pre-wrap' }}>
+                  {msg.text.replace(/```action[\s\S]*?```/g, '').trim()}
+                </div>
+
+                {msg.action && (
+                  <div className="action-card">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span className="track-tag track-frontend">
+                        Action: {msg.action.action}
                       </span>
+                      {executedActions[msg.id] && (
+                        <span style={{ fontSize: '0.74rem', color: 'var(--google-green)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <CheckCircle size={12} /> Executed
+                        </span>
+                      )}
+                    </div>
+
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '10px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      {msg.action.title && <div><strong>Title:</strong> {msg.action.title}</div>}
+                      {msg.action.status && <div><strong>Status:</strong> {msg.action.status}</div>}
+                      {msg.action.assigned_to && <div><strong>Assignee:</strong> @{msg.action.assigned_to}</div>}
+                      {msg.action.receiver && <div><strong>To:</strong> @{msg.action.receiver}</div>}
+                      {msg.action.is_anonymous && <div><strong>Mode:</strong> Anonymous</div>}
+                    </div>
+
+                    {!executedActions[msg.id] ? (
+                      <button
+                        className="btn btn-primary"
+                        style={{ width: '100%', padding: '7px 12px', fontSize: '0.78rem' }}
+                        onClick={() => handleExecuteAction(msg.id, msg.action)}
+                      >
+                        <Play size={12} /> Confirm & Execute
+                      </button>
+                    ) : (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--google-green)', fontWeight: 500 }}>
+                        {executedActions[msg.id]}
+                      </div>
                     )}
                   </div>
-
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
-                    {msg.action.title && <div><strong>Title:</strong> {msg.action.title}</div>}
-                    {msg.action.status && <div><strong>Status:</strong> {msg.action.status}</div>}
-                    {msg.action.assigned_to && <div><strong>Assignee:</strong> @{msg.action.assigned_to}</div>}
-                    {msg.action.receiver && <div><strong>To:</strong> @{msg.action.receiver}</div>}
-                    {msg.action.is_anonymous && <div><strong>Mode:</strong> Anonymous</div>}
-                  </div>
-
-                  {!executedActions[msg.id] ? (
-                    <button
-                      className="btn btn-primary"
-                      style={{ width: '100%', padding: '6px 12px', fontSize: '0.78rem' }}
-                      onClick={() => handleExecuteAction(msg.id, msg.action)}
-                    >
-                      <Play size={12} /> Confirm & Execute
-                    </button>
-                  ) : (
-                    <div style={{ fontSize: '0.75rem', color: 'var(--google-green)', fontWeight: 500 }}>
-                      {executedActions[msg.id]}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            ))
+          )}
           {loading && (
             <div className="chat-bubble chat-bubble-model">
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Oracle is thinking...</span>
@@ -322,23 +410,54 @@ export function AgenticWorkspace({ onOpenClassicView }) {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Bar */}
+        {/* Input Bar with Slash Command Menu */}
         <form
           className="oracle-input-bar"
           onSubmit={(e) => { e.preventDefault(); sendPrompt(input); }}
         >
+          {showSlashMenu && (
+            <div className="slash-menu">
+              {slashCommands.map(c => (
+                <button
+                  key={c.cmd}
+                  type="button"
+                  className="slash-item"
+                  onClick={() => applySlashCommand(c)}
+                >
+                  <div>
+                    <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--google-blue)', fontWeight: 600, marginRight: '8px' }}>
+                      {c.cmd}
+                    </span>
+                    <span style={{ fontWeight: 500 }}>{c.label}</span>
+                  </div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{c.desc}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <button
+            type="button"
+            className="btn-icon"
+            title="Slash commands"
+            onClick={() => setShowSlashMenu(prev => !prev)}
+          >
+            <Slash size={14} />
+          </button>
+
           <input
             type="text"
             className="form-input"
-            placeholder={currentUser ? 'Tell Frontier Oracle what to do...' : 'Sign in to command Frontier Oracle...'}
+            placeholder={currentUser ? 'Ask Frontier Oracle or type / for commands...' : 'Sign in to command Frontier Oracle...'}
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={handleInputChange}
             style={{ flex: 1, borderRadius: 'var(--radius-pill)', padding: '9px 16px' }}
           />
+
           <button
             type="submit"
             className="btn btn-primary"
-            style={{ width: '40px', height: '40px', padding: 0, borderRadius: '50%' }}
+            style={{ width: '38px', height: '38px', padding: 0, borderRadius: '50%', flexShrink: 0 }}
             disabled={loading || !input.trim() || !currentUser}
           >
             <Send size={15} />
@@ -346,21 +465,21 @@ export function AgenticWorkspace({ onOpenClassicView }) {
         </form>
       </div>
 
-      {/* Right: Live Workspace Pulse Rail */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto' }}>
+      {/* Right: Live Workspace Pulse Rail (stacks cleanly when toggled on mobile) */}
+      <div className={`agentic-pulse-rail ${showMobilePulse ? 'mobile-expanded' : ''}`}>
         {pulse.liveEvent && (
           <div className="card" style={{ border: '1px solid var(--google-green)', padding: '14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--google-green)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--google-green)', fontWeight: 600, fontSize: '0.78rem', marginBottom: '6px' }}>
               <Radio size={14} /> LIVE MEETING NOW
             </div>
-            <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '8px' }}>{pulse.liveEvent.title}</div>
+            <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '10px' }}>{pulse.liveEvent.title}</div>
             {(pulse.liveEvent.join_url || pulse.liveEvent.meeting_link) && (
               <a
                 href={pulse.liveEvent.join_url || `/api/meetings/join/${pulse.liveEvent.id}`}
                 target="_blank"
                 rel="noreferrer"
                 className="btn btn-primary"
-                style={{ width: '100%', fontSize: '0.78rem' }}
+                style={{ width: '100%', fontSize: '0.78rem', textDecoration: 'none' }}
               >
                 <Video size={14} /> Join Live Call
               </a>
@@ -369,20 +488,20 @@ export function AgenticWorkspace({ onOpenClassicView }) {
         )}
 
         <div className="card" style={{ padding: '14px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontWeight: 600, fontSize: '0.86rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <span style={{ fontWeight: 600, fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Kanban size={15} style={{ color: 'var(--google-blue)' }} /> My Active Tasks ({pulse.myTasks.length})
             </span>
-            <button className="btn-icon" style={{ fontSize: '0.72rem' }} onClick={() => onOpenClassicView('tasks')} title="Open Classic Tasks Board">
-              <ArrowUpRight size={14} />
+            <button className="btn-icon" style={{ width: '28px', height: '28px' }} onClick={() => onOpenClassicView('tasks')} title="Open Tasks Board">
+              <ArrowUpRight size={13} />
             </button>
           </div>
           {pulse.myTasks.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {pulse.myTasks.slice(0, 4).map(t => (
-                <div key={t.id} style={{ fontSize: '0.78rem', padding: '6px 8px', background: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-sm)' }}>
+                <div key={t.id} style={{ fontSize: '0.78rem', padding: '7px 9px', background: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-sm)' }}>
                   <div style={{ fontWeight: 500 }}>#{t.id} {t.title}</div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{t.status} • {t.track}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>{t.status} • {t.track}</div>
                 </div>
               ))}
             </div>
@@ -395,11 +514,11 @@ export function AgenticWorkspace({ onOpenClassicView }) {
 
         <div className="card" style={{ padding: '14px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-            <span style={{ fontWeight: 600, fontSize: '0.86rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontWeight: 600, fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Vote size={15} style={{ color: 'var(--google-purple)' }} /> Consensus Booth
             </span>
-            <button className="btn-icon" onClick={() => onOpenClassicView('voting')} title="Open Peer Review">
-              <ArrowUpRight size={14} />
+            <button className="btn-icon" style={{ width: '28px', height: '28px' }} onClick={() => onOpenClassicView('voting')} title="Open Peer Review">
+              <ArrowUpRight size={13} />
             </button>
           </div>
           <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
@@ -409,11 +528,11 @@ export function AgenticWorkspace({ onOpenClassicView }) {
 
         <div className="card" style={{ padding: '14px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-            <span style={{ fontWeight: 600, fontSize: '0.86rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontWeight: 600, fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Users size={15} style={{ color: 'var(--google-green)' }} /> Inbox & Tasklets ({pulse.pendingTasklets.length})
             </span>
-            <button className="btn-icon" onClick={() => onOpenClassicView('peers')} title="Open Team & Peers">
-              <ArrowUpRight size={14} />
+            <button className="btn-icon" style={{ width: '28px', height: '28px' }} onClick={() => onOpenClassicView('peers')} title="Open Team & Peers">
+              <ArrowUpRight size={13} />
             </button>
           </div>
           <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
@@ -425,11 +544,11 @@ export function AgenticWorkspace({ onOpenClassicView }) {
 
         <div className="card" style={{ padding: '14px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-            <span style={{ fontWeight: 600, fontSize: '0.86rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontWeight: 600, fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Shield size={15} style={{ color: 'var(--google-amber)' }} /> 2-Man Governance ({pulse.pendingTickets.length})
             </span>
-            <button className="btn-icon" onClick={() => onOpenClassicView('settings')} title="Open Governance">
-              <ArrowUpRight size={14} />
+            <button className="btn-icon" style={{ width: '28px', height: '28px' }} onClick={() => onOpenClassicView('settings')} title="Open Governance">
+              <ArrowUpRight size={13} />
             </button>
           </div>
           <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
